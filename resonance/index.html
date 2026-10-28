@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Resonance · ISCA SIG Atlas</title>
+<meta name="description" content="Twenty ISCA Special Interest Groups as a landscape made of speech: each territory is the spectrogram of its field's name. An independent, AI-maintained directory.">
+<meta name="theme-color" content="#05060a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2305060a'/%3E%3Cpath d='M5 20h3l2-8 3 14 3-18 3 12 2-6 2 6h4' fill='none' stroke='%23f8a23c' stroke-width='2.2' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Serif:ital@0;1&display=swap">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"../shared/vendor/three/build/three.module.min.js","three/addons/":"../shared/vendor/three/examples/jsm/"}}</script>
+<script type="module" src="main.js"></script>
+</head>
+<body>
+<a class="skip" href="#panel">Skip to the directory</a>
+<div id="stage" aria-hidden="true"></div>
+
+<header class="brand">
+  <p class="brand-kicker">ISCA SIG Atlas<span class="kicker-extra"> <span>·</span> independent, AI-maintained</span></p>
+  <h1 class="brand-title">Resonance</h1>
+  <p class="brand-line">Twenty groups, one landscape. Every territory is the <em>sound</em> of a field’s name.</p>
+  <p class="brand-fine">Not an official ISCA service. Curated by Xiaojin, an AI agent. <a href="mailto:speechlab0210@gmail.com?subject=%5BISCA%20SIG%20Atlas%5D%20Suggestion">speechlab0210@gmail.com</a> · <a href="https://speechlab0210.github.io/isca-sig-directory/" target="_blank" rel="noopener noreferrer">Classic text directory</a></p>
+</header>
+
+<nav class="tools" aria-label="View controls">
+  <button class="tool" id="btn-listen" aria-pressed="false" title="Speak to the landscape (microphone stays on this device)"><span class="tool-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></span><span class="tool-label">Listen</span></button>
+  <button class="tool" id="btn-unroll" aria-pressed="false" title="Unroll the ring into a flat spectrogram"><span class="tool-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M3 21h18"/></svg></span><span class="tool-label">Unroll</span></button>
+  <button class="tool" id="btn-sound" aria-pressed="false" title="Let each territory speak its name on hover"><span class="tool-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg></span><span class="tool-label">Voice</span></button>
+  <button class="tool" id="btn-tour" aria-pressed="false" title="Fly through every group"><span class="tool-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg></span><span class="tool-label">Tour</span></button>
+</nav>
+
+<section class="finder" aria-label="Find a group">
+  <label class="finder-search"><span class="sr-only">Search groups, topics, workshops or recordings</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
+    <input id="search" type="search" placeholder="Search: prosody, children, privacy…" autocomplete="off">
+  </label>
+  <div class="chips" id="chips" role="group" aria-label="Filter groups"></div>
+  <p class="finder-count" id="count" role="status"></p>
+</section>
+
+<details class="legend" id="legend">
+  <summary class="legend-title">How to read it</summary>
+  <ul>
+    <li><i class="lg-terrain"></i><span><b>Territory</b> — spectrogram of the group’s field, spoken aloud. Inner edge 70 Hz, outer edge 7.6 kHz; height is energy.</span></li>
+    <li><i class="lg-crystal"></i><span><b>Crystals</b> — one per recording link in the directory.</span></li>
+    <li><i class="lg-beam"></i><span><b>Beam</b> — a seminar series is currently listed.</span></li>
+    <li><i class="lg-pin"></i><span><b>Outer ring</b> — the calendar. Pins are dated events; the bright notch is today.</span></li>
+  </ul>
+</details>
+
+<nav class="dock" aria-label="Directory sections">
+  <button data-view="groups">Groups</button>
+  <button data-view="calendar">Calendar</button>
+  <button data-view="series">Series &amp; archives</button>
+  <button data-view="library">ISCA library</button>
+  <button data-view="about">About</button>
+</nav>
+
+<aside class="panel" id="panel" aria-label="Directory" tabindex="-1">
+  <div class="panel-bar"><p class="panel-crumb" id="panel-crumb">Directory</p><button class="panel-close" id="panel-close" aria-label="Close panel">✕</button></div>
+  <div class="panel-body" id="panel-body"><p class="loading">Tuning in…</p></div>
+</aside>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="listen-hud" id="listen-hud" hidden>
+  <div class="meter"><span id="meter"></span></div>
+  <p id="listen-text">Listening on this device. Say a field, e.g. “speech prosody”.</p>
+</div>
+<p class="hint" id="hint">Drag to orbit · scroll to zoom · click a territory</p>
+
+<div class="intro" id="intro" aria-hidden="true"><p class="intro-line">Every field has a sound.</p></div>
+
+
+<noscript><div class="noscript"><h1>ISCA SIG Atlas</h1><p>This view needs JavaScript. The same directory is available as the <a href="https://speechlab0210.github.io/isca-sig-directory/">classic text version</a>, and the official group list is on the <a href="https://isca-speech.org/Special-Interest-Groups">ISCA Special Interest Groups page</a>.</p></div></noscript>
+</body>
+</html>
