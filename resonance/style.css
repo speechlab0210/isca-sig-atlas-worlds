@@ -212,6 +212,12 @@ body.panel-open .dock { left: calc((100vw - var(--panel-w)) / 2); }
 body.no-webgl .label-layer, body.no-webgl .legend, body.no-webgl .hint, body.no-webgl #btn-listen, body.no-webgl #btn-unroll, body.no-webgl #btn-tour { display: none; }
 body.no-webgl .panel { width: min(720px, 100vw); left: 50%; transform: translateX(-50%); }
 
+/* ---------- medium widths: icon-only tools so they never cover the title ---------- */
+@media (max-width: 1180px) and (min-width: 761px) {
+  .tool { width: 40px; padding: 0; justify-content: center; }
+  .tool-label { display: none; }
+  body.panel-open .kicker-extra { display: none; }
+}
 /* ---------- small screens ---------- */
 @media (max-width: 760px) {
   .brand { left: 16px; top: 14px; max-width: 60vw; }

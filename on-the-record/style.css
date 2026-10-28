@@ -177,6 +177,13 @@ body.sleeve-open .sleeve { transform: none; }
 body.no-webgl .sleeve { width: min(720px, 100vw); left: 50%; right: auto; transform: translateX(-50%) !important; }
 body.no-webgl .tools, body.no-webgl .hint, body.no-webgl .sleeve-toggle { display: none; }
 
+/* ---------- medium widths: icon-only tools so they never cover the title ---------- */
+@media (max-width: 1180px) and (min-width: 761px) {
+  .tool { width: 40px; padding: 0; justify-content: center; }
+  .tool-label { display: none; }
+  .liner-of { font-size: 10px; letter-spacing: .04em; }
+  body.sleeve-open .kicker-extra { display: none; }
+}
 /* ---------- small screens: the sleeve becomes a sheet that peeks from the bottom ---------- */
 @media (max-width: 760px) {
   .brand { left: 16px; top: 14px; max-width: calc(100vw - 32px); }
