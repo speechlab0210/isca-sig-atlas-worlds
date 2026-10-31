@@ -24,6 +24,7 @@ const narrow = () => innerWidth < 760;
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 const TAU = Math.PI * 2;
 const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+const initialHash = location.hash;
 
 const RECORD_R = 16, LABEL_R = 3.6, TOP = 0.92;
 const RINGS = [{ r: 14.15, lot: 1.75, off: 0 }, { r: 9.6, lot: 1.72, off: Math.PI / 6 }, { r: 5.5, lot: 1.6, off: Math.PI / 12 }];
@@ -35,7 +36,7 @@ const NIGHT = { bg: '#15110d', table: '#2a221b', hemi: 0.12, sun: 0.08, exposure
 
 const state = {
   data: null, meta: null, sigs: [], towns: [], selected: -1, hovered: -1, filter: 'all', query: '',
-  spin: 0, spinVel: IDLE_SPIN, spinning: !reduceMotion, dragging: null, targetRot: null,
+  spin: 0, spinVel: reduceMotion ? 0 : IDLE_SPIN, spinning: !reduceMotion, dragging: null, targetRot: null,
   playing: false, ring: 0, ringStart: 0, playingTown: -1, night: false, nightK: 0, sound: false,
   view: 'tracklist', sleeveOpen: !narrow(), viewShift: 0, armAngle: 0,
 };
@@ -48,7 +49,6 @@ const T = totals(data);
 state.towns = (() => { const slots = layout(); return state.sigs.map((s, i) => ({ i, sig: s, ...slots[i], lift: 0, clayOn: false })); })();
 
 let webglOK = true;
-try { const c = document.createElement('canvas'); webglOK = !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { webglOK = false; }
 
 /* ---------- textures drawn on the fly ---------- */
 function grooveTexture() {
@@ -109,7 +109,11 @@ function woodTexture() {
 }
 
 /* ---------- scene ---------- */
-const renderer = webglOK ? new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }) : null;
+// Construct the renderer inside the guard: this version of Three requires WebGL 2.
+// A WebGL 1 probe or a successful probe followed by GPU allocation failure is insufficient.
+let renderer = null;
+try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); }
+catch { webglOK = false; }
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.5, 400);
 let controls, composer, tiltH, tiltV, bloom;
@@ -376,7 +380,7 @@ function overviewPose() {
   const sleeveW = state.sleeveOpen && !narrow() ? Math.min(430, innerWidth * 0.34) + 14 : 0;
   const f = Math.max(0.35, (innerWidth - sleeveW) / innerWidth);
   const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
-  const d = Math.max(narrow() ? 58 : 50, (narrow() ? 15.5 : 18.5) / (f * tanH));
+  const d = Math.max(narrow() ? 58 : 50, (narrow() ? 19 : 18.5) / (f * tanH));
   const dir = (narrow() ? new THREE.Vector3(0, 66, 50) : new THREE.Vector3(0, 40, 44)).normalize();
   const target = new THREE.Vector3(0, -0.5, narrow() ? 2.5 : 0.5);
   return [target.clone().add(dir.multiplyScalar(d)), target];
@@ -393,14 +397,15 @@ function bringToFront(i) {
   const t = state.towns[i];
   // rotate the record so this town faces the viewer (world angle 0 = +z)
   state.targetRot = state.spin + wrap(-t.phi - state.spin);
+  if (reduceMotion) state.spin = state.targetRot;
 }
 function select(i, { open = true } = {}) {
   state.selected = i;
-  if (i < 0) { state.targetRot = null; return; }
+  if (i < 0) { state.targetRot = null; updateSpinButton(); return; }
   bringToFront(i);
+  updateSpinButton();
   if (controls) frameTown(i);
   if (open) showView('sig', i);
-  history.replaceState(null, '', '#sig-' + encodeURIComponent(state.sigs[i].acronym));
 }
 
 /* ---------- sleeve (side panel) ---------- */
@@ -412,11 +417,13 @@ function trackRow(t) {
     <span class="track-len" title="${s.videos.length} recording links">${s.videos.length ? s.videos.length + ' rec' : '—'}</span></button></li>`;
 }
 function tracklist() {
-  const A = state.towns.filter(t => t.track.startsWith('A')), Bs = state.towns.filter(t => t.track.startsWith('B'));
-  return `<section class="tracks"><p class="ax-eyebrow">Tracklist</p><h2>Twenty groups, one disc</h2>
+  const matching = state.towns.filter(t => t.sig._on);
+  const A = matching.filter(t => t.track.startsWith('A')), Bs = matching.filter(t => t.track.startsWith('B'));
+  return `<section class="tracks"><p class="ax-eyebrow">Tracklist</p><h2>${state.sigs.length} groups, one disc</h2>
     <p class="ax-note">Each landmark is a Special Interest Group. Choose a track to spin it to the front.</p>
-    <h3>Side A · Topic SIGs <span class="ax-count">${A.length}</span></h3><ol class="tracklist">${A.map(trackRow).join('')}</ol>
-    <h3>Side B · Language SIGs <span class="ax-count">${Bs.length}</span></h3><ol class="tracklist">${Bs.map(trackRow).join('')}</ol>
+    ${A.length ? `<h3>Side A · Topic SIGs <span class="ax-count">${A.length}</span></h3><ol class="tracklist">${A.map(trackRow).join('')}</ol>` : ''}
+    ${Bs.length ? `<h3>Side B · Language SIGs <span class="ax-count">${Bs.length}</span></h3><ol class="tracklist">${Bs.map(trackRow).join('')}</ol>` : ''}
+    ${matching.length ? '' : '<p class="ax-empty" role="status">No groups match this search and filter.</p><button class="chip" type="button" data-clear-search>Clear search and filters</button>'}
     <p class="ax-fine">“rec” counts recording links in the directory.</p></section>`;
 }
 function linerHead(i) {
@@ -441,7 +448,8 @@ function showView(view, arg) {
   $('#sleeve-back').hidden = view === 'tracklist';
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-current', String(b.dataset.view === view || (view === 'sig' && b.dataset.view === 'tracklist'))));
   openSleeve(true);
-  if (view !== 'sig' && view !== 'tracklist') history.replaceState(null, '', '#' + view);
+  const hash = view === 'sig' ? '#sig-' + encodeURIComponent(state.sigs[arg].acronym) : view === 'tracklist' ? '' : '#' + view;
+  history.replaceState(null, '', location.pathname + location.search + hash);
 }
 function openSleeve(open) {
   const changed = state.sleeveOpen !== open;
@@ -449,8 +457,14 @@ function openSleeve(open) {
   if (changed && controls && state.selected < 0 && !state.playing) overview();
   document.body.classList.toggle('sleeve-open', open);
   $('#sleeve-toggle').setAttribute('aria-expanded', String(open));
+  $('#sleeve-toggle').setAttribute('aria-label', open ? 'Close liner notes' : 'Open liner notes');
+  sbody.inert = !open;
+  $('.finder').inert = !open;
+  $('.sleeve-bar').inert = !open;
+  $('.tabs').inert = !open && !narrow();
 }
 sbody.addEventListener('click', e => {
+  if (e.target.closest('[data-clear-search]')) { $('#search').value = ''; state.query = ''; chips.querySelector('[data-filter="all"]').click(); $('#search').focus(); return; }
   const tr = e.target.closest('[data-town]');
   if (tr) { stopPlay(); select(Number(tr.dataset.town)); return; }
   const st = e.target.closest('[data-step]');
@@ -484,6 +498,8 @@ $('#search').addEventListener('keydown', e => { if (e.key === 'Enter') { const i
 /* ---------- play mode: the tonearm reads the tracks ring by ring ---------- */
 const ticker = $('#ticker');
 function startPlay() {
+  if (!webglOK) return;
+  if (state.view === 'sig') showView('tracklist');
   state.playing = true; state.ring = 0; state.ringStart = state.spin; state.playingTown = -1;
   state.targetRot = null; state.selected = -1;
   $('#btn-play').setAttribute('aria-pressed', 'true');
@@ -491,15 +507,18 @@ function startPlay() {
   ticker.hidden = false;
   ticker.innerHTML = '<span class="tk-k">Now playing</span><b>Side A, outer grooves</b>';
   crackle(true);
+  updateSpinButton();
   overview();
 }
 function stopPlay() {
   if (!state.playing) return;
   state.playing = false; state.playingTown = -1;
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
   $('#btn-play').setAttribute('aria-pressed', 'false');
   $('#btn-play .tool-label').textContent = 'Play';
   ticker.hidden = true;
   crackle(false);
+  updateSpinButton();
 }
 $('#btn-play').addEventListener('click', () => state.playing ? stopPlay() : startPlay());
 ticker.addEventListener('click', () => { if (state.playingTown >= 0) { const k = state.playingTown; stopPlay(); select(k); } });
@@ -509,10 +528,19 @@ $('#btn-lamp').addEventListener('click', e => {
   e.currentTarget.setAttribute('aria-pressed', String(state.night));
   document.body.classList.toggle('is-night', state.night);
 });
-$('#btn-spin').addEventListener('click', e => {
-  state.spinning = !state.spinning;
-  e.currentTarget.setAttribute('aria-pressed', String(!state.spinning));
-  e.currentTarget.querySelector('.tool-label').textContent = state.spinning ? 'Pause' : 'Spin';
+function updateSpinButton() {
+  const moving = state.playing || (state.spinning && state.targetRot === null);
+  $('#btn-spin').setAttribute('aria-pressed', String(!moving));
+  $('#btn-spin').querySelector('.tool-label').textContent = moving ? 'Pause' : 'Spin';
+  $('#btn-spin').setAttribute('aria-label', moving ? 'Pause the record' : 'Resume the record');
+}
+$('#btn-spin').addEventListener('click', () => {
+  const moving = state.playing || (state.spinning && state.targetRot === null);
+  stopPlay();
+  state.spinning = !moving;
+  state.spinVel = 0;
+  if (state.spinning && state.selected >= 0) { select(-1); showView('tracklist'); overview(); }
+  updateSpinButton();
 });
 $('#btn-voice').addEventListener('click', e => {
   state.sound = !state.sound;
@@ -574,29 +602,49 @@ addEventListener('keydown', e => {
   const el = e.target instanceof Element ? e.target : null;
   if (el?.matches('input, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
   const n = state.towns.length;
-  if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
+  if (e.key === '/') { e.preventDefault(); stopPlay(); select(-1); showView('tracklist'); overview(); $('#search').focus(); }
   else if (e.key === 'Escape') { stopPlay(); if (state.selected >= 0) { select(-1); showView('tracklist'); overview(); } }
   else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { stopPlay(); select(((state.selected < 0 ? 0 : state.selected + (e.key === 'ArrowRight' ? 1 : -1)) + n) % n); }
-  else if (e.key === ' ' && !el?.closest('button, a, summary')) { e.preventDefault(); $('#btn-play').click(); }
-  else if (e.key.toLowerCase() === 'n') $('#btn-lamp').click();
+  else if (webglOK && e.key === ' ' && !el?.closest('button, a, summary')) { e.preventDefault(); $('#btn-play').click(); }
+  else if (webglOK && e.key.toLowerCase() === 'n') $('#btn-lamp').click();
 });
 
 /* ---------- start ---------- */
+function showDirectoryFallback() {
+  webglOK = false;
+  renderer?.setAnimationLoop(null);
+  stopPlay();
+  document.body.classList.add('no-webgl');
+  document.documentElement.dataset.webgl = 'fallback';
+  openSleeve(true);
+  const status = $('#render-status');
+  status.textContent = '3D is unavailable. You can browse every group and resource in this list.';
+  status.hidden = false;
+}
 applyFilters();
 showView('tracklist');
 openSleeve(!narrow());
+updateSpinButton();
+if (source === 'snapshot') {
+  const status = $('#data-status');
+  status.textContent = `Saved copy · ${fmtDate(takenAt)}. Live data is unavailable; dates may have changed.`;
+  status.hidden = false;
+}
+$('.skip').addEventListener('click', e => {
+  e.preventDefault(); showView('tracklist'); sbody.focus();
+});
 if (!webglOK) {
-  document.body.classList.add('no-webgl');
-  openSleeve(true);
-  toast('3D is not available in this browser, so the directory is shown as a list.', 8000);
+  showDirectoryFallback();
 } else {
-  renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 1.75));
+  try {
+  renderer.setPixelRatio(Math.min(devicePixelRatio, coarse || narrow() ? 1.25 : 1.75));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = DAY.exposure;
   $('#stage').appendChild(renderer.domElement);
+  renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); showDirectoryFallback(); });
   // the canvas textures (label, signs) use the page fonts, so wait briefly for them
   await Promise.race([Promise.all(['600 30px "DM Mono"', '700 150px "Fraunces"', 'italic 600 96px "Fraunces"', '600 64px "Bricolage Grotesque"'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 1800))]);
   buildWorld();
@@ -607,7 +655,7 @@ if (!webglOK) {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.07;
   controls.enablePan = false;
-  controls.minDistance = 12; controls.maxDistance = 110;
+  controls.minDistance = 12; controls.maxDistance = 180;
   controls.minPolarAngle = 0.25; controls.maxPolarAngle = 1.2;
   const [p0, t0] = overviewPose();
   camera.position.copy(p0).multiplyScalar(reduceMotion ? 1 : 1.45); controls.target.copy(t0);
@@ -698,7 +746,7 @@ if (!webglOK) {
   function frame(forcedDt) {
     const dt = forcedDt ?? Math.min(clock.getDelta(), 0.05);
     simNow += dt * 1000;
-    const time = simNow / 1000;
+    const time = reduceMotion ? 0 : simNow / 1000;
 
     // day / night
     state.nightK += ((state.night ? 1 : 0) - state.nightK) * Math.min(1, dt * 2.5);
@@ -712,6 +760,8 @@ if (!webglOK) {
     scene.environmentIntensity = THREE.MathUtils.lerp(0.55, 0.12, k);
     WINDOW.emissiveIntensity = 1.8 * k; BULB.emissiveIntensity = 0.15 + 2.6 * k;
     bloom.strength = 0.75 * k;
+    bloom.enabled = k > 0.001;
+    tiltH.enabled = tiltV.enabled = !coarse && !narrow();
 
     // record motion: drag > bring-to-front > play/idle spin
     if (!state.dragging) {
@@ -731,7 +781,7 @@ if (!webglOK) {
     // tonearm: rest, or tracking one ring per revolution while playing
     let armTarget = restAngle();
     if (state.playing) {
-      if (state.spin - state.ringStart > TAU) { state.ring++; state.ringStart = state.spin; if (state.ring > 2) stopPlay(); else ticker.innerHTML = `<span class="tk-k">Now playing</span><b>${state.ring === 1 ? 'Side A, inner grooves' : 'Side B, by the label'}</b>`; }
+      if (state.spin - state.ringStart > TAU) { state.ring++; state.ringStart = state.spin; state.playingTown = -1; if (state.ring > 2) stopPlay(); else ticker.innerHTML = `<span class="tk-k">Now playing</span><b>${state.ring === 1 ? 'Side A, inner grooves' : 'Side B, by the label'}</b>`; }
       if (state.playing) armTarget = angleForRadius(RINGS[state.ring].r);
     }
     state.armAngle += (armTarget - state.armAngle) * Math.min(1, dt * 2);
@@ -742,7 +792,7 @@ if (!webglOK) {
     const needlePhi = Math.atan2(needle.x, needle.z);
     let playingNow = -1;
     if (onRecord) state.towns.forEach(t => { if (t.ring === state.ring && Math.abs(wrap(t.phi + state.spin - needlePhi)) < 0.16) playingNow = t.i; });
-    if (playingNow !== state.playingTown && state.playing) {
+    if (playingNow >= 0 && playingNow !== state.playingTown && state.playing) {
       state.playingTown = playingNow;
       if (playingNow >= 0) {
         const t = state.towns[playingNow];
@@ -768,7 +818,7 @@ if (!webglOK) {
     GLOW.emissiveIntensity = 0.45 + 0.35 * Math.sin(time * 2.5);
 
     // the curator walks the lane between the outer and middle grooves
-    curator.userData.theta -= dt * 0.11;
+    if (!reduceMotion) curator.userData.theta -= dt * 0.11;
     const th = curator.userData.theta;
     curator.position.set(Math.sin(th) * LANE_R, TOP, Math.cos(th) * LANE_R);
     curator.rotation.y = th - Math.PI / 2;
@@ -782,19 +832,38 @@ if (!webglOK) {
       if (f >= 1) fly = null;
     }
     controls.update();
+    // Keep the model clear when portrait framing moves the camera farther away.
+    scene.fog.near = Math.max(80, camera.position.distanceTo(controls.target) + 36);
+    scene.fog.far = scene.fog.near + 100;
     const shiftTarget = state.sleeveOpen && !narrow() ? Math.min(430, innerWidth * 0.34) / 2 : 0;
     state.viewShift += (shiftTarget - state.viewShift) * Math.min(1, dt * 4);
     if (Math.abs(state.viewShift) > 0.5) camera.setViewOffset(innerWidth, innerHeight, state.viewShift, 0, innerWidth, innerHeight);
     else camera.clearViewOffset();
     composer.render();
   }
-  renderer.setAnimationLoop(() => frame());
+  let lastRender = -Infinity;
+  renderer.setAnimationLoop(now => {
+    if (document.hidden || now - lastRender < 1000 / 30) return;
+    lastRender = now;
+    frame();
+  });
+  document.documentElement.dataset.webgl = 'ready';
   window.__record = { state, camera, renderer, get controls() { return controls; }, advance: (sec, step = 1 / 30) => { for (let t = 0; t < sec; t += step) frame(step); } };
+  } catch (error) {
+    console.warn('The 3D view could not start; the text directory remains available.', error);
+    showDirectoryFallback();
+  }
 }
 
-const hash = decodeURIComponent(location.hash.slice(1));
-if (hash.startsWith('sig-')) {
-  const i = state.sigs.findIndex(s => s.acronym === hash.slice(4));
-  if (i >= 0) setTimeout(() => select(i), reduceMotion || !webglOK ? 0 : 1800);
-} else if (['calendar', 'series', 'library', 'about'].includes(hash)) showView(hash);
+function restoreHash(rawHash) {
+  let hash;
+  try { hash = decodeURIComponent(rawHash.slice(1)); } catch { hash = ''; }
+  stopPlay();
+  const i = hash.startsWith('sig-') ? state.sigs.findIndex(s => s.acronym === hash.slice(4)) : -1;
+  if (i >= 0) select(i);
+  else if (['calendar', 'series', 'library', 'about'].includes(hash)) showView(hash);
+  else { select(-1); showView('tracklist'); overview(); }
+}
+if (initialHash) restoreHash(initialHash);
+addEventListener('hashchange', () => restoreHash(location.hash));
 document.documentElement.dataset.source = source;

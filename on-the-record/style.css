@@ -90,6 +90,9 @@ body.sleeve-open .sleeve { transform: none; }
 .sleeve-bar { padding: 4px 20px 0; min-height: 8px; }
 .back { margin-top: 6px; padding: 4px 0; border: 0; background: none; font: 600 13px var(--sans); color: var(--tomato); }
 .sleeve-body { flex: 1; overflow-y: auto; padding: 8px 24px 40px; scrollbar-width: thin; scrollbar-color: #cdbca8 transparent; outline: none; }
+.sleeve-body { min-height: 0; overflow-wrap: anywhere; }
+.sleeve > :not(.sleeve-body) { flex-shrink: 0; }
+.data-status { margin: 8px 20px 0; padding: 8px 10px; border: 1px solid #bd861e; border-radius: 8px; background: #fff1ca; color: #5b3b09; font-size: 12px; }
 .loading { color: var(--muted); }
 
 /* tracklist — the back of the sleeve */
@@ -207,3 +210,11 @@ body.no-webgl .tools, body.no-webgl .hint, body.no-webgl .sleeve-toggle { displa
   .ax-recs { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+body.no-webgl #stage { display: none; }
+body.no-webgl .sleeve { top: 14px; bottom: 14px; height: auto; max-height: calc(100dvh - 28px); }
+@media (max-width: 760px) {
+  .sleeve-toggle { top: -30px; height: 30px; }
+  .sleeve { height: 78dvh; }
+  .ax-sig-acr { font-size: clamp(32px, 8vw, 46px); }
+  body.no-webgl .brand { display: none; }
+}
