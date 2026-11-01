@@ -37,10 +37,12 @@ test.beforeEach(async ({ context, page }) => {
 test.afterEach(async ({ page }) => { expect(page.__siteErrors).toEqual([]); });
 
 async function openFancy(page, suffix = '') {
-  await page.goto(fancy + suffix);
+  await page.goto(fancy + suffix, {waitUntil:'domcontentloaded'});
   await expect(page.locator('html')).toHaveAttribute('data-source', /live|snapshot/);
   await expect(page.locator('.track')).toHaveCount(data.sigs.length);
-  if (!(await page.locator('#search').isVisible())) await page.locator('#sleeve-toggle').click();
+  if ((await page.locator('#sleeve-toggle').getAttribute('aria-expanded')) === 'false')
+    await page.locator('#sleeve-toggle').click();
+  await expect(page.locator('#sleeve-toggle')).toHaveAttribute('aria-expanded','true');
 }
 async function fits(page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -72,14 +74,15 @@ test('all SIG profiles, sections and edition links work', async ({ page }) => {
   await page.locator('#btn-spin').click();
   await page.screenshot({path:'qa-artifacts/fancy-desktop.jpg',type:'jpeg'});
   for (const sig of data.sigs) {
-    await page.locator('[data-view="tracklist"]').click();
+    await page.locator('.tabs [data-view="tracklist"]').click();
     await page.locator('.track').filter({has:page.locator('b', {hasText:new RegExp('^' + sig.acronym + '$')})}).click();
     await expect(page.locator('.ax-sig-acr')).toHaveText(sig.acronym);
     await expect(page.locator('.ax-sig-name')).toHaveText(sig.fullName);
+    await expect(page.locator('.ax-sig .ax-lede')).toHaveText(sig.description);
     await expect(page.locator('#classic-edition')).toHaveAttribute('href',classic+'#sig-'+encodeURIComponent(sig.acronym));
   }
   for (const view of ['calendar','series','library','about']) {
-    await page.locator('[data-view="'+view+'"]').click();
+    await page.locator('.tabs [data-view="'+view+'"]').click();
     await expect(page.locator('#sleeve-body h2').first()).toBeVisible();
     await expect(page.locator('#sleeve-body .ax-count')).toHaveCount(0);
     await expect(page.locator('#sleeve-body a[href*="scoot"]')).toHaveCount(0);
@@ -99,12 +102,12 @@ test('whole-page search, reset, filters and turntable controls', async ({ page }
   await page.locator('#search').fill('five-round');
   await expect(page.locator('.search-hit')).toHaveCount(1);
   await expect(page.locator('.search-hit')).toContainText('Maintenance');
-  await page.locator('[data-view="tracklist"]').click();
+  await page.locator('.tabs [data-view="tracklist"]').click();
   await expect(page.locator('#search')).toHaveValue('');
   await expect(page.locator('.track')).toHaveCount(data.sigs.length);
   await page.locator('[data-filter="language"]').click();
   await expect(page.locator('.track')).toHaveCount(data.sigs.filter(s=>s.kind==='language').length);
-  await page.locator('[data-view="tracklist"]').click();
+  await page.locator('.tabs [data-view="tracklist"]').click();
   await expect(page.locator('.track')).toHaveCount(data.sigs.length);
   await page.locator('#search').fill('no-such-page-qa-718692');
   await expect(page.locator('.search-results')).toContainText('No pages match');
@@ -130,11 +133,11 @@ for (const width of [390,320]) test('mobile navigation and search at '+width+'px
   await page.locator('.search-hit').click();
   await expect(page.locator('#sleeve-body')).toContainText('AI agent');
   await page.screenshot({path:'qa-artifacts/fancy-mobile-'+width+'.jpg',type:'jpeg'});
-  await page.goto(classic);
+  await page.goto(classic, {waitUntil:'domcontentloaded'});
   await expect(page.locator('.sig')).toHaveCount(data.sigs.length);
   await fits(page);
   await page.locator('#search').fill('five-round');
-  await expect(page.locator('#search-results')).toContainText('Maintenance');
+  await expect(page.locator('#page-results')).toContainText('Maintenance');
   await page.screenshot({path:'qa-artifacts/classic-mobile-'+width+'.jpg',type:'jpeg'});
 });
 
