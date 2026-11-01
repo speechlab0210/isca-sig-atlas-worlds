@@ -1,0 +1,53 @@
+name: SIG site verification
+run-name: SIG QA ${{ inputs.mode || 'staged' }} / ${{ inputs.ticket || github.sha }}
+on:
+  push:
+    branches: ['codex/sig-qa/**', 'codex/sig-mail-verification-*']
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [staged, live]
+        default: staged
+      ticket:
+        type: string
+        required: true
+      data_ref:
+        type: string
+        default: main
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: speechlab0210/isca-sig-directory
+          ref: ${{ inputs.data_ref || 'main' }}
+          path: .qa-data
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Record data revision
+        run: echo "QA_DATA_COMMIT=$(git -C .qa-data rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Verify the staged or published website
+        env:
+          QA_MODE: ${{ inputs.mode || 'staged' }}
+        run: npm run test:site
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: sig-site-qa-${{ github.sha }}-${{ inputs.mode || 'staged' }}
+          path: |
+            qa-artifacts/
+            test-results/
+          retention-days: 30
