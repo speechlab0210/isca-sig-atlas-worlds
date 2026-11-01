@@ -4,7 +4,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const origin = 'https://speechlab0210.github.io';
-const fancy = origin + '/isca-sig-atlas-worlds/on-the-record/';
+const fancy = origin + '/isca-sig-atlas-worlds/';
+const legacyFancy = fancy + 'on-the-record/';
 const classic = origin + '/isca-sig-directory/';
 const mode = process.env.QA_MODE || 'staged';
 const data = JSON.parse(fs.readFileSync('.qa-data/docs/data.json', 'utf8'));
@@ -36,8 +37,8 @@ test.beforeEach(async ({ context, page }) => {
 });
 test.afterEach(async ({ page }) => { expect(page.__siteErrors).toEqual([]); });
 
-async function openFancy(page, suffix = '') {
-  await page.goto(fancy + suffix, {waitUntil:'domcontentloaded'});
+async function openFancy(page, suffix = '', entry = fancy) {
+  await page.goto(entry + suffix, {waitUntil:'domcontentloaded'});
   await expect(page.locator('html')).toHaveAttribute('data-source', /live|snapshot/);
   // CI has software WebGL. Render a real initial frame, then step animations
   // explicitly so a continuous GPU workload does not starve interaction checks.
@@ -47,7 +48,7 @@ async function openFancy(page, suffix = '') {
       window.__record.advance(1/30);
     }
   });
-  await expect(page.locator('.track')).toHaveCount(data.sigs.length);
+  if (!suffix.includes('#')) await expect(page.locator('.track')).toHaveCount(data.sigs.length);
   if ((await page.locator('#sleeve-toggle').getAttribute('aria-expanded')) === 'false')
     await page.locator('#sleeve-toggle').click();
   await expect(page.locator('#sleeve-toggle')).toHaveAttribute('aria-expanded','true');
@@ -58,8 +59,11 @@ async function fits(page) {
 
 test('release bytes and live data agree with the checked revisions', async ({ request }) => {
   test.skip(mode !== 'live', 'Byte verification applies to the real published site.');
+  const root = await request.get(fancy + '?qa=' + process.env.GITHUB_SHA);
+  expect(root.ok()).toBe(true);
+  expect(digest(await root.body())).toBe(digest(fs.readFileSync('index.html')));
   for (const name of ['index.html','main.js','style.css']) {
-    const r = await request.get(fancy + name + '?qa=' + process.env.GITHUB_SHA);
+    const r = await request.get(legacyFancy + name + '?qa=' + process.env.GITHUB_SHA);
     expect(r.ok()).toBe(true);
     expect(digest(await r.body())).toBe(digest(fs.readFileSync('on-the-record/' + name)));
   }
@@ -72,6 +76,25 @@ test('release bytes and live data agree with the checked revisions', async ({ re
     const r = await request.get(classic + name + '?qa=' + process.env.QA_DATA_COMMIT);
     expect(r.ok()).toBe(true);
     expect(digest(await r.body())).toBe(digest(fs.readFileSync('.qa-data/docs/' + name)));
+  }
+});
+
+test('root and legacy entries preserve direct links and the same live directory', async ({ page }) => {
+  for (const entry of [fancy,legacyFancy]) {
+    await openFancy(page, '?entry-check=1#sig-SLaTE', entry);
+    await expect(page).toHaveURL(entry+'?entry-check=1#sig-SLaTE');
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href',fancy);
+    await expect(page.locator('html')).toHaveAttribute('data-source','live');
+    await expect(page.locator('html')).toHaveAttribute('data-webgl','ready');
+    await expect(page.locator('.ax-sig-acr')).toHaveText('SLaTE');
+    await page.locator('.tabs [data-view="series"]').click();
+    await expect(page).toHaveURL(entry+'?entry-check=1#series');
+    await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);
+    await page.locator('#classic-edition').click();
+    await expect(page).toHaveURL(classic+'#series');
+    await page.locator('#fancy-edition').click();
+    await expect(page).toHaveURL(fancy+'#series');
+    await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);
   }
 });
 
