@@ -117,7 +117,7 @@ const hostOf = url => { try { return new URL(url).hostname.replace(/^www\./, '')
 function sourceCheck(data, url) {
   const s = data.checks.sources.find(x => x.url === url);
   if (!s) return '';
-  return `<p class="ax-check${s.status === 'retrieved' ? '' : ' is-warning'}">${s.status === 'retrieved' ? 'Source page retrieved' : 'Source could not be retrieved'} · ${esc(fmtDate(s.checkedAt))}</p>`;
+  return `<p class="ax-check${s.status === 'retrieved' ? '' : ' is-warning'}">${s.status === 'retrieved' ? 'Page read successfully' : 'Page unavailable at last check'} · ${esc(fmtDate(s.checkedAt))}</p>`;
 }
 
 export function eventItem(e, { showSig = true } = {}) {
@@ -148,7 +148,7 @@ export function sigDetail(data, s) {
   <p class="ax-lede">${esc(s.description)}</p>
   <div class="ax-links">${s.website ? link(s.website, 'SIG website') : ''}${link(s.iscaUrl, 'Official ISCA profile')}</div>
   ${sourceCheck(data, s.website || s.iscaUrl)}
-  <p class="ax-fine">${s.contentReviewed ? `Profile reviewed ${esc(fmtDate(s.contentReviewed))}; first compiled ${esc(fmtDate(data.generated))}.` : `Profile first compiled ${esc(fmtDate(data.generated))}.`} Source retrieval dates do not certify every detail.</p>
+  <p class="ax-fine">${s.contentReviewed ? `Profile reviewed ${esc(fmtDate(s.contentReviewed))}; first compiled ${esc(fmtDate(data.generated))}.` : `Profile first compiled ${esc(fmtDate(data.generated))}.`} A page-access check is not a review of every fact.</p>
   <section class="ax-block"><h3>Activities &amp; recurring events</h3><ul class="ax-acts">${s.activities.map(a => `<li class="ax-act" data-type="${esc(a.type || 'other')}"><span class="ax-act-type">${esc(ACT_LABEL[a.type] || 'Activity')}</span><h4>${a.url ? link(a.url, a.name) : esc(a.name)}</h4>${a.cadence ? `<p>${esc(a.cadence)}</p>` : ''}${a.last ? `<p>${esc(a.last)}</p>` : ''}</li>`).join('')}</ul></section>
   ${s.series.length ? `<section class="ax-block"><h3>Seminars &amp; lecture series</h3><ul class="ax-acts">${s.series.map(w => `<li class="ax-act" data-type="webinar-series"><span class="ax-act-type">${w.active ? 'Series listed' : 'No current schedule found'}</span><h4>${link(w.pageUrl, w.name)}</h4><p>${esc(w.cadence || 'Schedule announced by the organizer')}</p>${w.notes ? `<p>${esc(w.notes)}</p>` : ''}${w.recUrl ? `<p>${link(w.recUrl, 'Recording index')}</p>` : ''}</li>`).join('')}</ul></section>` : ''}
   <section class="ax-block"><h3>Recordings &amp; video</h3>${s.videos.length ? `<ul class="ax-recs">${rec}</ul><p class="ax-fine">Links point to external hosts; this site does not copy or host the videos.</p>` : '<p class="ax-empty">No public recording link has been located in this directory. This does not establish that none exists.</p>'}</section>
@@ -165,9 +165,36 @@ export function eventsBlock(data) {
   <details class="ax-more"><summary>Recently past (${past.length})</summary><p class="ax-fine">Past dates move here automatically. A passed date does not confirm that an event took place.</p><ul class="ax-events">${past.map(e => eventItem(e)).join('')}</ul></details></section>`;
 }
 
+
+function talkList(data, query='', group='', order='newest') {
+ const q=query.trim().toLocaleLowerCase();
+ return [...(data.editorial.talks||[])].filter(t=>(!group||t.sig===group)&&(!q||[t.title,t.speaker,t.series,t.sig].filter(Boolean).join(' ').toLocaleLowerCase().includes(q))).sort((a,b)=>{
+  if(order==='title') return a.title.localeCompare(b.title);
+  if(!a.date||!b.date) return Number(!a.date)-Number(!b.date)||a.title.localeCompare(b.title);
+  return (order==='oldest'?1:-1)*a.date.localeCompare(b.date)||a.title.localeCompare(b.title);
+ });
+}
+function talkControls(data) {
+ const groups=[...new Set((data.editorial.talks||[]).map(t=>t.sig))].sort();
+ return `<div class="talk-controls"><label>Find a talk<input id="talk-search" type="search" placeholder="Title, speaker or topic…"></label><label>SIG / series<select id="talk-group"><option value="">All SIGs & series</option>${groups.map(s=>`<option>${esc(s)}</option>`).join('')}</select></label><label>Sort<select id="talk-order"><option value="newest">Newest dated first</option><option value="oldest">Oldest dated first</option><option value="title">Title A–Z</option></select></label></div>`;
+}
+function talkRows(rows) {
+ return rows.map(t=>`<article class="talk-row" data-talk-url="${esc(t.url)}" data-date="${esc(t.date||'')}"><p class="talk-meta">${esc(t.sig)} · ${esc(t.series)}${t.date?` · <time datetime="${esc(t.date)}">${esc(fmtDate(t.date))}</time>`:' · Date not listed'}</p><h3>${link(t.url,t.title)}</h3>${t.speaker?`<p>${esc(t.speaker)}</p>`:''}<p class="talk-source">${link(t.source,'Source')}</p></article>`).join('')||'<p>No talks match. Try another keyword or SIG.</p>';
+}
+function talkIndex(data) {
+ const rows=talkList(data);
+ return `<section class="talk-index"><h2>Individual talks & tutorials</h2><p>Open an indexed talk directly. Dated talks come first; undated recordings follow. Browse the series collections below.</p>${talkControls(data)}<p id="talk-count" role="status">${rows.length} talks & sessions</p><div id="talk-results">${talkRows(rows)}</div></section>`;
+}
+function refreshTalks(data) {
+ const box=document.getElementById('talk-results');if(!box)return;
+ const rows=talkList(data,document.getElementById('talk-search').value,document.getElementById('talk-group').value,document.getElementById('talk-order').value);
+ box.innerHTML=talkRows(rows);document.getElementById('talk-count').textContent=`${rows.length} talks & sessions`;
+}
+
+export { refreshTalks };
 export function seriesBlock(data) {
   const pill = p => ({ live: 'Series listed', paused: 'Archive', announced: 'Announced' })[p] || p;
-  return `<section class="ax-section"><p class="ax-eyebrow">Listen in</p><h2>Seminars &amp; lecture series <span class="ax-count">${data.editorial.series.length}</span></h2>
+  return `<section class="ax-section"><p class="ax-eyebrow">Listen in</p>${talkIndex(data)}<h2>Browse by series <span class="ax-count">${data.editorial.series.length}</span></h2>
   <p class="ax-note">Series status is dated, not a promise of the next session. Follow the organizer’s page for registration and schedule changes.</p>
   <ul class="ax-series">${data.editorial.series.map(s => `<li class="ax-series-item"><p class="ax-eyebrow">${esc(s.sig)} · ${esc(pill(s.pill))}</p><h3>${esc(s.name)}</h3><p class="ax-cadence">${esc(s.cad)}</p><p>${esc(s.text)}</p>${s.next ? `<p>${esc(s.next)}</p>` : ''}${linkRow(s.links)}<p class="ax-fine">Content review: ${esc(fmtDate(s.reviewed || data.generated))}</p></li>`).join('')}</ul>
   <h2>Workshop &amp; conference recordings <span class="ax-count">${data.editorial.archives.length}</span></h2>
@@ -191,7 +218,7 @@ export function aboutBlock(data, meta = {}) {
   <p class="ax-lede">${esc(data.editorial.disclosure)}</p>
   <p>${esc(m.overview)}</p><p class="ax-note">${provenance}</p>
   <h3>Daily collection and checking</h3>
-  <p class="ax-status">Last source check: <b>${esc(fmtDate(data.checks.checkedAt))}</b> · ${ok} of ${sources.length} pages retrieved.</p>
+  <p class="ax-status">Last source check: <b>${esc(fmtDate(data.checks.checkedAt))}</b> · ${ok} of ${sources.length} pages read successfully.</p>
   <ol class="ax-steps">${m.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
   <h3>SIG representative review</h3><p>${esc(m.representativeReview)}</p>
   <h3>Ask the AI maintainer</h3><p>${esc(m.contact)}</p>
@@ -201,10 +228,10 @@ export function aboutBlock(data, meta = {}) {
   <p>Open a group to see the public pages currently included in its daily collection. Each profile also links to its original activity and recording sources. Groups are listed alphabetically, without a rank.</p>
   <div class="sig-sources">${[...data.sigs].sort((a,b)=>a.acronym.localeCompare(b.acronym)).map(s => {
     const urls = sources.filter(x => (x.groups || []).includes(s.acronym));
-    return `<details><summary>${esc(s.acronym)} · ${esc(s.fullName)}</summary><p>${link(s.website || s.iscaUrl,'SIG website / ISCA profile')}</p><ul>${urls.map(x => `<li>${link(x.url,x.url)} · ${x.status === 'retrieved' ? 'retrieved' : 'unavailable at last check'}</li>`).join('')}</ul></details>`;
+    return `<details><summary>${esc(s.acronym)} · ${esc(s.fullName)}</summary><p>${link(s.website || s.iscaUrl,'SIG website / ISCA profile')}</p><ul>${urls.map(x => `<li>${link(x.url,x.url)} · ${x.status === 'retrieved' ? 'page read successfully' : 'page unavailable'} · ${esc(fmtDate(x.checkedAt))}</li>`).join('')}</ul></details>`;
   }).join('')}</div>
   ${meta.concept ? `<div class="ax-concept">${meta.concept}</div>` : ''}
   <h3>Update log</h3><ul class="ax-updates">${data.updates.map(u => `<li><time datetime="${esc(u.date)}">${esc(fmtDate(u.date))}</time><p>${esc(u.text)}</p></li>`).join('')}</ul>
-  <details class="ax-more"><summary>Research notes</summary><ul class="ax-notes">${(data.editorial.notes || []).map(n => `<li>${esc(n.text)}</li>`).join('')}</ul></details>
+
   </section>`;
 }
