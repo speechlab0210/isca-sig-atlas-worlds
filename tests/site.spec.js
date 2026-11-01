@@ -188,6 +188,10 @@ test('snapshot and no-WebGL fallbacks still expose the directory', async ({ page
   await expect(page.locator('#render-status')).toBeVisible();
   await page.locator('.track').first().click();
   await expect(page.locator('.ax-sig-acr')).toBeVisible();
+  await page.locator('[data-view="about"]').click();
+  await expect(page.locator('#sleeve-body')).toContainText('Xiaojin, the AI agent maintaining this Atlas, checked');
+  await page.locator('[data-view="series"]').click();
+  await expect(page.getByRole('heading', {name:/Workshop & conference recordings/})).toHaveCount(0);
 });
 
 
@@ -203,10 +207,15 @@ test('plain maintenance copy and direct talk index in both editions', async ({ p
     await expect(body).toContainText('all 20 SIGs');
     await expect(body).toContainText('page read successfully');
     await expect(body).toContainText('organizer’s page');
+    await expect(body).toContainText('“Content reviewed” means Xiaojin, the AI agent maintaining this Atlas, checked the entry’s information against the source page on that date.');
+    await expect(body).toContainText('It does not mean that ISCA or a SIG representative has reviewed or approved the entry.');
+    await page.screenshot({path:'qa-artifacts/'+edition+'-maintenance-reviewer.jpg',type:'jpeg'});
     await expect(body).not.toContainText('Research notes');
     await expect(body).not.toContainText('SALTMIL and SLIM');
     if (edition==='fancy') await page.locator('[data-view="series"]').click();
     else await page.locator('[data-section="series"]').click();
+    await expect(page.getByRole('heading', {name:/Workshop & conference recordings/})).toHaveCount(0);
+    await expect(page.locator('.ax-archives,.archive-grid')).toHaveCount(0);
     await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);
     await expect(page.locator('.talk-row[data-talk-url="https://www.youtube.com/watch?v=6lMs1VcUrYc"] .talk-meta')).toContainText('SPCC 2016');
     await expect(page.locator('.talk-row[data-talk-url="https://www.youtube.com/watch?v=lsKGeUk2aF8"] .talk-meta')).toContainText('IWSLT 2016 sessions');
@@ -280,6 +289,12 @@ for(const width of [390,320]) test('talk controls and whole-record return fit at
   await page.screenshot({path:'qa-artifacts/fancy-talk-mobile-'+width+'.jpg',type:'jpeg'});
   await page.goto(classic+'#series');await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);await fits(page);
   await page.screenshot({path:'qa-artifacts/classic-talk-mobile-'+width+'.jpg',type:'jpeg'});
+  await page.locator('[data-section="about"]').click();await fits(page);
+  await expect(page.locator('#content')).toContainText('Xiaojin, the AI agent maintaining this Atlas, checked');
+  await page.screenshot({path:'qa-artifacts/classic-reviewer-mobile-'+width+'.jpg',type:'jpeg'});
+  await openFancy(page);await page.locator('[data-view="about"]').click();await fits(page);
+  await expect(page.locator('#sleeve-body')).toContainText('Xiaojin, the AI agent maintaining this Atlas, checked');
+  await page.screenshot({path:'qa-artifacts/fancy-reviewer-mobile-'+width+'.jpg',type:'jpeg'});
 });
 
 for (const width of [1024,768]) test('section tabs stay inside the sleeve at '+width+'px', async ({ page }) => {

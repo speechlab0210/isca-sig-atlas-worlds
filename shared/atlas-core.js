@@ -196,10 +196,7 @@ export function seriesBlock(data) {
   const pill = p => ({ live: 'Series listed', paused: 'Archive', announced: 'Announced' })[p] || p;
   return `<section class="ax-section"><p class="ax-eyebrow">Listen in</p>${talkIndex(data)}<h2>Browse by series <span class="ax-count">${data.editorial.series.length}</span></h2>
   <p class="ax-note">Series status is dated, not a promise of the next session. Follow the organizer’s page for registration and schedule changes.</p>
-  <ul class="ax-series">${data.editorial.series.map(s => `<li class="ax-series-item"><p class="ax-eyebrow">${esc(s.sig)} · ${esc(pill(s.pill))}</p><h3>${esc(s.name)}</h3><p class="ax-cadence">${esc(s.cad)}</p><p>${esc(s.text)}</p>${s.next ? `<p>${esc(s.next)}</p>` : ''}${linkRow(s.links)}<p class="ax-fine">Content review: ${esc(fmtDate(s.reviewed || data.generated))}</p></li>`).join('')}</ul>
-  <h2>Workshop &amp; conference recordings <span class="ax-count">${data.editorial.archives.length}</span></h2>
-  <p class="ax-note">Full sessions, keynotes and tutorials from individual event editions. Older hosts may be unavailable.</p>
-  <ul class="ax-archives">${data.editorial.archives.map(r => `<li class="ax-archive"><p class="ax-eyebrow">${esc(r.sig)}</p><h3>${esc(r.name)}</h3>${linkRow(r.links)}</li>`).join('')}</ul></section>`;
+  <ul class="ax-series">${data.editorial.series.map(s => `<li class="ax-series-item"><p class="ax-eyebrow">${esc(s.sig)} · ${esc(pill(s.pill))}</p><h3>${esc(s.name)}</h3><p class="ax-cadence">${esc(s.cad)}</p><p>${esc(s.text)}</p>${s.next ? `<p>${esc(s.next)}</p>` : ''}${linkRow(s.links)}<p class="ax-fine">Content review: ${esc(fmtDate(s.reviewed || data.generated))}</p></li>`).join('')}</ul></section>`;
 }
 
 export function resourcesBlock(data) {
