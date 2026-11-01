@@ -1,7 +1,7 @@
 // On the Record — the ISCA SIG Atlas as a small town pressed onto a spinning record.
 // Twenty groups are twenty landmarks. Stacks of little records count each group's
 // recording links, pennants mark upcoming dates, and an "on air" mast marks a listed
-// seminar series. Drag the record to spin it; drop the tonearm to hear the tracklist.
+// seminar series. Drag the record to spin it; drop the tonearm to tour the SIGs.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -37,7 +37,7 @@ const NIGHT = { bg: '#15110d', table: '#2a221b', hemi: 0.12, sun: 0.08, exposure
 const state = {
   data: null, meta: null, sigs: [], towns: [], selected: -1, hovered: -1, filter: 'all', query: '',
   spin: 0, spinVel: reduceMotion ? 0 : IDLE_SPIN, spinning: !reduceMotion, dragging: null, targetRot: null,
-  playing: false, ring: 0, ringStart: 0, playingTown: -1, night: false, nightK: 0, sound: false,
+  playing: false, ring: 0, ringStart: 0, playingTown: -1, night: false, nightK: 0,
   view: 'tracklist', sleeveOpen: !narrow(), viewShift: 0, armAngle: 0,
 };
 
@@ -45,7 +45,7 @@ const { data, source, takenAt } = await loadAtlas();
 state.data = data; state.meta = { source, takenAt };
 state.sigs = data.sigs;
 const T = totals(data);
-// tracks (ring, angle, A1…/B1…) exist without 3D, so the tracklist also works when WebGL is missing
+// positions (ring and angle) exist without 3D, so the tracklist also works when WebGL is missing
 state.towns = (() => { const slots = layout(); return state.sigs.map((s, i) => ({ i, sig: s, ...slots[i], lift: 0, clayOn: false })); })();
 
 let webglOK = true;
@@ -80,11 +80,11 @@ function labelTexture() {
   const chars = [...ring], step = TAU / chars.length;
   chars.forEach((ch, i) => { x.save(); x.translate(m, m); x.rotate(i * step); x.translate(0, -(m - 62)); x.fillText(ch, 0, 0); x.restore(); });
   x.fillStyle = '#fff6ea';
-  x.font = 'italic 600 96px "Fraunces", Georgia, serif'; x.fillText('On the', m, m - 150);
-  x.font = '700 150px "Fraunces", Georgia, serif'; x.fillText('Record', m, m - 40);
+  x.font = 'italic 600 96px "Fraunces", Georgia, serif'; x.fillText('ISCA', m, m - 150);
+  x.font = '700 150px "Fraunces", Georgia, serif'; x.fillText('SIG Atlas', m, m - 40);
   x.font = '600 34px "DM Mono", ui-monospace, monospace';
   x.fillText(`${T.sigs} GROUPS  ·  ${T.recordings} RECORDINGS`, m, m + 80);
-  x.fillText(`SIDE A · TOPICS   SIDE B · LANGUAGES`, m, m + 130);
+  x.fillText(`TOPICS & LANGUAGES · EQUAL COMMUNITIES`, m, m + 130);
   x.font = '600 30px "DM Mono", ui-monospace, monospace'; x.fillStyle = 'rgba(255,240,225,.8)';
   x.fillText('33⅓', m - 230, m + 10); x.fillText('RPM', m + 230, m + 10);
   x.fillStyle = '#1a1a1a'; x.beginPath(); x.arc(m, m, 26, 0, TAU); x.fill();
@@ -245,11 +245,16 @@ function layout() {
   const groups = [topic.slice(0, outerN), topic.slice(outerN), lang];
   const slots = [];
   groups.forEach((list, ring) => list.forEach((i, k) => slots[i] = { ring, phi: RINGS[ring].off + TAU * k / list.length }));
-  let a = 0, b = 0;
-  state.sigs.forEach((s, i) => { slots[i].track = s.kind === 'language' ? `B${++b}` : `A${++a}`; });
   return slots;
 }
 
+function statusSign(text, background) {
+  const c=document.createElement('canvas'); c.width=512; c.height=128;
+  const x=c.getContext('2d'); x.fillStyle=background; x.fillRect(0,0,512,128);
+  x.fillStyle='#ffffff'; x.font='bold 62px sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(text,256,66);
+  const texture=new THREE.CanvasTexture(c); texture.colorSpace=THREE.SRGBColorSpace;
+  const sign=new THREE.Sprite(new THREE.SpriteMaterial({map:texture})); sign.scale.set(3,.75,1); return sign;
+}
 function buildTowns() {
   const nowUp = new Set(splitEvents(state.data.events).future.map(e => e.sig));
   const recGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.045, 20), labGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.05, 12);
@@ -305,7 +310,8 @@ function buildTowns() {
       const tri = new THREE.Shape(); tri.moveTo(0, 0); tri.lineTo(0.6, -0.17); tri.lineTo(0, -0.34); tri.closePath();
       const cloth = new THREE.Mesh(new THREE.ShapeGeometry(tri), new THREE.MeshStandardMaterial({ color: PAL.mustard, side: THREE.DoubleSide, roughness: 0.8 }));
       cloth.position.set(0.02, 1.68, 0);
-      flag.add(pole, cloth); flag.position.set(R.lot * 0.15, 0.16, -R.lot * 0.78);
+      const sign=statusSign('UPCOMING','#8a5a08'); sign.position.set(.25,2.05,0);
+      flag.add(pole, cloth, sign); flag.position.set(R.lot * 0.15, 0.16, -R.lot * 0.78);
       flag.traverse(o => { if (o.isMesh) o.castShadow = true; });
       flag.userData.cloth = cloth;
       town.add(flag);
@@ -313,13 +319,16 @@ function buildTowns() {
     // "on air" mast for a listed seminar series
     let mast = null;
     if (s.activeSeries) {
-      const bb = new THREE.Box3().setFromObject(building);
+      building.updateWorldMatrix(true, true);
+      const bb = new THREE.Box3().setFromObject(building)
+        .applyMatrix4(new THREE.Matrix4().copy(holder.matrixWorld).invert());
       mast = new THREE.Group();
       const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 0.8, 5), mat(PAL.slate)); rod.position.y = 0.4;
       const tip = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), ONAIR); tip.position.y = 0.85;
       mast.add(rod, tip);
+      const sign=statusSign('SERIES','#2f7d77'); sign.position.y=1.05; mast.add(sign);
       mast.position.set(-0.45, bb.max.y - 0.05, -0.2);
-      town.add(mast);
+      holder.add(mast);
     }
     // selection halo and pick target
     const halo = new THREE.Mesh(new THREE.TorusGeometry(R.lot + 0.18, 0.07, 8, 56), new THREE.MeshStandardMaterial({ color: PAL.tomato, emissive: PAL.tomato, emissiveIntensity: 0.6, transparent: true, opacity: 0 }));
@@ -411,45 +420,55 @@ function select(i, { open = true } = {}) {
 /* ---------- sleeve (side panel) ---------- */
 const sleeve = $('#sleeve'), sbody = $('#sleeve-body');
 function trackRow(t) {
-  const s = t.sig, on = s._on;
-  return `<li><button type="button" class="track${on ? '' : ' is-dim'}${t.i === state.selected ? ' is-current' : ''}" data-town="${t.i}">
-    <span class="track-no">${t.track}</span><span class="track-main"><b>${esc(s.acronym)}</b><span>${esc(s.fullName)}</span></span>
-    <span class="track-len" title="${s.videos.length} recording links">${s.videos.length ? s.videos.length + ' rec' : '—'}</span></button></li>`;
+  const s = t.sig, up = eventsFor(state.data,s.acronym).future.length;
+  return `<li><button type="button" class="track${t.i === state.selected ? ' is-current' : ''}" data-town="${t.i}"><span class="track-main"><b>${esc(s.acronym)}</b><span>${esc(s.fullName)}</span><span class="activity-markers">${up ? '<em class="marker-upcoming">Upcoming event</em>' : ''}${s.activeSeries ? '<em class="marker-series">Series listed</em>' : ''}</span></span></button></li>`;
 }
 function tracklist() {
-  const matching = state.towns.filter(t => t.sig._on);
-  const A = matching.filter(t => t.track.startsWith('A')), Bs = matching.filter(t => t.track.startsWith('B'));
-  return `<section class="tracks"><p class="ax-eyebrow">Tracklist</p><h2>${state.sigs.length} groups, one disc</h2>
-    <p class="ax-note">Each landmark is a Special Interest Group. Choose a track to spin it to the front.</p>
-    ${A.length ? `<h3>Side A · Topic SIGs <span class="ax-count">${A.length}</span></h3><ol class="tracklist">${A.map(trackRow).join('')}</ol>` : ''}
-    ${Bs.length ? `<h3>Side B · Language SIGs <span class="ax-count">${Bs.length}</span></h3><ol class="tracklist">${Bs.map(trackRow).join('')}</ol>` : ''}
-    ${matching.length ? '' : '<p class="ax-empty" role="status">No groups match this search and filter.</p><button class="chip" type="button" data-clear-search>Clear search and filters</button>'}
-    <p class="ax-fine">“rec” counts recording links in the directory.</p></section>`;
+  const matching = state.towns.filter(t => t.sig._on).sort((a,b)=>a.sig.acronym.localeCompare(b.sig.acronym));
+  return `<section class="tracks"><h2>All SIGs, one Atlas</h2><p class="ax-note">Each landmark represents an equal community. Choose a SIG to explore its sources, events and recordings.</p>
+  <p class="marker-legend"><span class="marker-upcoming">Upcoming event</span> A dated event is ahead. <span class="marker-series">Series listed</span> A seminar series is listed; this does not mean it is live now.</p>
+  <ul class="tracklist">${matching.map(trackRow).join('')}</ul></section>`;
 }
 function linerHead(i) {
-  const t = state.towns[i], s = t.sig, word = WORD_FOR_SPEECH[s.acronym], lm = LANDMARK[s.acronym];
-  return `<div class="liner-head"><span class="liner-track">${t.track}</span><span class="liner-of">${esc(kindLabel(s))} · track ${t.track} of the disc</span>
-    <div class="stepper"><button type="button" data-step="-1" aria-label="Previous track">←</button><button type="button" data-step="1" aria-label="Next track">→</button></div></div>
-    <p class="liner-landmark">${lm ? `On the record: ${esc(lm)}.` : word ? `On the record: a pavilion signed “${esc(word)}”, the word for speech.` : 'On the record: a house for a newly listed group.'}</p>`;
+  const s=state.sigs[i], word=WORD_FOR_SPEECH[s.acronym], lm=LANDMARK[s.acronym];
+  return `<div class="liner-head"><span class="liner-of">${esc(kindLabel(s))}</span><div class="stepper"><button type="button" data-step="-1" aria-label="Previous SIG">←</button><button type="button" data-step="1" aria-label="Next SIG">→</button></div></div>
+  <p class="liner-landmark">${lm ? `Landmark: ${esc(lm)}.` : word ? `A pavilion signed “${esc(word)}”, the word for speech.` : 'A house for this group.'}</p>`;
 }
-const CONCEPT = `<h3>How to read the record</h3><p>The twenty Special Interest Groups are pressed onto one disc: Side A’s topic groups on the outer grooves, Side B’s language groups near the label. Each landmark is a playful picture of the field, not an official symbol. The stacks of little records count each group’s recording links in the directory; a yellow pennant means a dated event is coming up; a mast with a red light means a seminar series is currently listed.</p><p>The little robot walking the grooves is Xiaojin, the AI agent that collects and checks this directory every day.</p>`;
+const CONCEPT = `<h3>Reading the record</h3><p>Every landmark represents a SIG, without a rank or number. Small record stacks represent recording links. Yellow UPCOMING flags mark dated events; teal SERIES signs mark listed seminar series, not a live broadcast. The same meanings appear as text beside each group. The small robot represents Xiaojin, the AI maintainer.</p>`;
+const pageText = html => { const el=document.createElement('div'); el.innerHTML=html; return el.textContent.replace(/\s+/g,' ').trim(); };
+let searchPages;
+function getSearchPages() {
+  return searchPages ||= [
+    ...state.sigs.map((s,i)=>({title:s.acronym+' · '+s.fullName,kind:'SIG profile',view:'sig',arg:i,text:pageText(sigDetail(state.data,s))})),
+    ...[['calendar','Upcoming and past events',eventsBlock],['series','Seminars, series and recordings',seriesBlock],['library','ISCA resources',resourcesBlock],['about','Maintenance, sources and updates',aboutBlock]].map(([view,title,fn])=>({view,title,kind:'Atlas page',text:pageText(fn(state.data,{...state.meta,concept:CONCEPT}))}))
+  ];
+}
+function searchResults() {
+  const q=state.query.trim().toLocaleLowerCase(), pages=getSearchPages();
+  const hits=pages.map((p,i)=>({...p,i,pos:p.text.toLocaleLowerCase().indexOf(q)})).filter(p=>(p.pos>=0||p.title.toLocaleLowerCase().includes(q))&&(p.view!=='sig'||passesFilter(state.sigs[p.arg],state.filter)));
+  $('#count').textContent=`${hits.length} matching pages · full Atlas search`;
+  return `<section class="search-results"><h2>Search all pages</h2><p class="ax-note">Profiles, events, series, recordings, resources and maintenance. Topic/language filters apply only to SIG profiles.</p>${hits.length?hits.map(p=>`<article><button type="button" class="search-hit" data-result="${p.i}"><small>${esc(p.kind)}</small><b>${esc(p.title)}</b><span>${esc(p.text.slice(Math.max(0,p.pos-65),Math.max(0,p.pos-65)+220))}…</span></button></article>`).join(''):'<p class="ax-empty" role="status">No pages match this search.</p>'}<button type="button" class="chip" data-clear-search>Clear search and filters</button></section>`;
+}
 function showView(view, arg) {
   state.view = view;
   document.body.dataset.view = view;
   let html = '';
   if (view === 'sig') html = linerHead(arg) + sigDetail(state.data, state.sigs[arg]);
   else if (view === 'tracklist') html = tracklist();
+  else if (view === 'search') html = searchResults();
   else if (view === 'calendar') html = eventsBlock(state.data);
   else if (view === 'series') html = seriesBlock(state.data);
   else if (view === 'library') html = resourcesBlock(state.data);
   else if (view === 'about') html = aboutBlock(state.data, { ...state.meta, concept: CONCEPT });
-  sbody.innerHTML = html;
+  sbody.innerHTML = html.replace(/ <span class="ax-count">[^<]*<\/span>/g, '');
   sbody.scrollTop = 0;
   $('#sleeve-back').hidden = view === 'tracklist';
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-current', String(b.dataset.view === view || (view === 'sig' && b.dataset.view === 'tracklist'))));
   openSleeve(true);
   const hash = view === 'sig' ? '#sig-' + encodeURIComponent(state.sigs[arg].acronym) : view === 'tracklist' ? '' : '#' + view;
   history.replaceState(null, '', location.pathname + location.search + hash);
+  const classicHash = view === 'sig' ? hash : {tracklist:'#directory',calendar:'#events',series:'#series',library:'#resources',about:'#about'}[view] || '#directory';
+  document.querySelectorAll('.edition-switch a:not([aria-current])').forEach(a=>a.href='https://speechlab0210.github.io/isca-sig-directory/'+classicHash);
 }
 function openSleeve(open) {
   const changed = state.sleeveOpen !== open;
@@ -465,26 +484,36 @@ function openSleeve(open) {
 }
 sbody.addEventListener('click', e => {
   if (e.target.closest('[data-clear-search]')) { $('#search').value = ''; state.query = ''; chips.querySelector('[data-filter="all"]').click(); $('#search').focus(); return; }
+  const result = e.target.closest('[data-result]');
+  if(result){const p=getSearchPages()[Number(result.dataset.result)]; if(p.view==='sig'){stopPlay();select(p.arg);}else showView(p.view); return;}
   const tr = e.target.closest('[data-town]');
   if (tr) { stopPlay(); select(Number(tr.dataset.town)); return; }
   const st = e.target.closest('[data-step]');
   if (st && state.selected >= 0) select((state.selected + Number(st.dataset.step) + state.towns.length) % state.towns.length);
 });
-$('#sleeve-back').addEventListener('click', () => { select(-1); showView('tracklist'); overview(); history.replaceState(null, '', location.pathname + location.search); });
+function resetDirectorySearch() {
+  $('#search').value = ''; state.query = ''; state.filter = 'all';
+  state.sigs.forEach(s => { s._on = true; });
+  document.querySelectorAll('#chips [data-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filter === 'all')));
+  $('#count').textContent = 'All groups are equal; listed alphabetically';
+}
+$('#sleeve-back').addEventListener('click', () => { resetDirectorySearch(); select(-1); showView('tracklist'); overview(); history.replaceState(null, '', location.pathname + location.search); });
 $('#sleeve-toggle').addEventListener('click', () => openSleeve(!state.sleeveOpen));
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.view === 'tracklist') resetDirectorySearch();
   if (b.dataset.view === 'tracklist' && state.selected >= 0) { select(-1); overview(); }
   showView(b.dataset.view);
 }));
 
 /* ---------- search & filters ---------- */
 const chips = $('#chips');
-chips.innerHTML = FILTERS.map(([id, label]) => `<button type="button" class="chip" data-filter="${id}" aria-pressed="${id === 'all'}">${label}</button>`).join('');
+chips.innerHTML = FILTERS.filter(([id])=>['all','topic','language'].includes(id)).map(([id, label]) => `<button type="button" class="chip" data-filter="${id}" aria-pressed="${id === 'all'}">${label}</button>`).join('');
 function applyFilters() {
-  let shown = 0;
-  state.sigs.forEach(s => { s._on = passesFilter(s, state.filter) && matchesQuery(s, state.query); if (s._on) shown++; });
-  $('#count').textContent = shown === state.sigs.length ? `${shown} groups on this disc` : `${shown} of ${state.sigs.length} groups`;
-  if (state.view === 'tracklist') { const top = sbody.scrollTop; sbody.innerHTML = tracklist(); sbody.scrollTop = top; }
+  const q=state.query.trim().toLocaleLowerCase();
+  const pages=getSearchPages();
+  state.sigs.forEach((s,i)=>{s._on=passesFilter(s,state.filter)&&(!q||pages[i].text.toLocaleLowerCase().includes(q));});
+  if(q) showView('search');
+  else {$('#count').textContent='All groups are equal; listed alphabetically'; showView('tracklist');}
 }
 chips.addEventListener('click', e => {
   const b = e.target.closest('[data-filter]'); if (!b) return;
@@ -493,7 +522,7 @@ chips.addEventListener('click', e => {
   applyFilters();
 });
 $('#search').addEventListener('input', e => { state.query = e.target.value; applyFilters(); });
-$('#search').addEventListener('keydown', e => { if (e.key === 'Enter') { const i = state.sigs.findIndex(s => s._on); if (i >= 0) select(i); } });
+$('#search').addEventListener('keydown', e => { if (e.key === 'Enter') sbody.querySelector('[data-result]')?.click(); });
 
 /* ---------- play mode: the tonearm reads the tracks ring by ring ---------- */
 const ticker = $('#ticker');
@@ -505,19 +534,16 @@ function startPlay() {
   $('#btn-play').setAttribute('aria-pressed', 'true');
   $('#btn-play .tool-label').textContent = 'Lift arm';
   ticker.hidden = false;
-  ticker.innerHTML = '<span class="tk-k">Now playing</span><b>Side A, outer grooves</b>';
-  crackle(true);
+  ticker.innerHTML = '<span class="tk-k">Now playing</span><b>Exploring the outer grooves</b>';
   updateSpinButton();
   overview();
 }
 function stopPlay() {
   if (!state.playing) return;
   state.playing = false; state.playingTown = -1;
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
   $('#btn-play').setAttribute('aria-pressed', 'false');
   $('#btn-play .tool-label').textContent = 'Play';
   ticker.hidden = true;
-  crackle(false);
   updateSpinButton();
 }
 $('#btn-play').addEventListener('click', () => state.playing ? stopPlay() : startPlay());
@@ -542,40 +568,6 @@ $('#btn-spin').addEventListener('click', () => {
   if (state.spinning && state.selected >= 0) { select(-1); showView('tracklist'); overview(); }
   updateSpinButton();
 });
-$('#btn-voice').addEventListener('click', e => {
-  state.sound = !state.sound;
-  e.currentTarget.setAttribute('aria-pressed', String(state.sound));
-  if (!state.sound) { if ('speechSynthesis' in window) speechSynthesis.cancel(); crackle(false); }
-  else if (state.playing) crackle(true);
-  toast(state.sound ? 'Sound on: the tonearm announces each track.' : 'Sound off.');
-});
-
-/* ---------- sound: a synthesised crackle and spoken track names (both optional) ---------- */
-let audio = null;
-function crackle(on) {
-  if (!state.sound && on) return;
-  if (!on) { audio?.gain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.2); return; }
-  if (!audio) {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const len = ctx.sampleRate * 3, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
-    for (let k = 0; k < len; k++) d[k] = (Math.random() * 2 - 1) * 0.012 + (Math.random() < 0.0009 ? (Math.random() * 2 - 1) * 0.5 : 0);
-    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
-    const gain = ctx.createGain(); gain.gain.value = 0;
-    src.connect(lp); lp.connect(gain); gain.connect(ctx.destination); src.start();
-    audio = { ctx, gain };
-  }
-  audio.ctx.resume();
-  audio.gain.gain.setTargetAtTime(0.35, audio.ctx.currentTime, 0.3);
-}
-function announce(t) {
-  if (!state.sound || !('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(`${t.track}. ${t.sig.fullName}.`);
-  u.lang = 'en-US'; u.rate = 1;
-  speechSynthesis.speak(u);
-}
-
 let toastTimer;
 function toast(msg, ms = 3500) {
   const el = $('#toast'); el.textContent = msg; el.hidden = false;
@@ -590,7 +582,7 @@ function showTip() {
   if (state.hovered === 'curator') tip.innerHTML = '<span class="tip-k">The curator</span><b>Xiaojin</b><span>The AI agent that collects and checks this directory every day. Click for how it works.</span>';
   else {
     const t = state.towns[state.hovered], s = t.sig, up = eventsFor(state.data, s.acronym).future.length;
-    tip.innerHTML = `<span class="tip-k">${t.track} · ${esc(kindLabel(s))}</span><b>${esc(s.acronym)}</b><span>${esc(s.fullName)}</span><span class="tip-k">${s.videos.length} recordings · ${up} upcoming${s.activeSeries ? ' · on air' : ''}</span>`;
+    tip.innerHTML = `<span class="tip-k">${esc(kindLabel(s))}</span><b>${esc(s.acronym)}</b><span>${esc(s.fullName)}</span><span class="tip-k">${s.videos.length} recordings · ${up} upcoming${s.activeSeries ? ' · series listed (not live status)' : ''}</span>`;
   }
   tip.hidden = false;
   const x = Math.min(pointer.x + 16, innerWidth - tip.offsetWidth - 10), y = Math.min(pointer.y + 16, innerHeight - tip.offsetHeight - 10);
@@ -781,7 +773,7 @@ if (!webglOK) {
     // tonearm: rest, or tracking one ring per revolution while playing
     let armTarget = restAngle();
     if (state.playing) {
-      if (state.spin - state.ringStart > TAU) { state.ring++; state.ringStart = state.spin; state.playingTown = -1; if (state.ring > 2) stopPlay(); else ticker.innerHTML = `<span class="tk-k">Now playing</span><b>${state.ring === 1 ? 'Side A, inner grooves' : 'Side B, by the label'}</b>`; }
+      if (state.spin - state.ringStart > TAU) { state.ring++; state.ringStart = state.spin; state.playingTown = -1; if (state.ring > 2) stopPlay(); else ticker.innerHTML = `<span class="tk-k">Now playing</span><b>${state.ring === 1 ? 'Exploring the inner grooves' : 'Exploring near the label'}</b>`; }
       if (state.playing) armTarget = angleForRadius(RINGS[state.ring].r);
     }
     state.armAngle += (armTarget - state.armAngle) * Math.min(1, dt * 2);
@@ -796,8 +788,7 @@ if (!webglOK) {
       state.playingTown = playingNow;
       if (playingNow >= 0) {
         const t = state.towns[playingNow];
-        ticker.innerHTML = `<span class="tk-k">Now playing · ${t.track}</span><b>${esc(t.sig.acronym)}</b><span>${esc(t.sig.fullName)}</span><span class="tk-more">Open liner notes →</span>`;
-        announce(t);
+        ticker.innerHTML = `<span class="tk-k">Now exploring</span><b>${esc(t.sig.acronym)}</b><span>${esc(t.sig.fullName)}</span><span class="tk-more">Open liner notes →</span>`;
       }
     }
 

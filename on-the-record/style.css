@@ -51,7 +51,7 @@ body.is-night .tool:not([aria-pressed="true"]) { background: rgba(40, 32, 26, .8
 
 /* ---------- finder (inside the sleeve, tracklist view only) ---------- */
 .finder { padding: 12px 20px 0; }
-body:not([data-view="tracklist"]) .finder { display: none; }
+body:not([data-view="tracklist"]):not([data-view="search"]) .chips { display: none; }
 .finder-search { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border-radius: 14px; border: 1.5px solid var(--ink); background: #fffaf2; }
 .finder-search:focus-within { border-color: var(--tomato); }
 .finder-search svg { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; }
@@ -99,7 +99,7 @@ body.sleeve-open .sleeve { transform: none; }
 .tracks h2, .ax-section h2 { margin: 2px 0 6px; font: 700 30px/1.05 var(--display); letter-spacing: -0.01em; }
 .tracks h3, .ax-section h3, .ax-block h3 { margin: 22px 0 8px; font: 500 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--tomato); }
 .tracklist { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.track { width: 100%; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 10px; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; transition: background .15s; }
+.track { width: 100%; display: grid; grid-template-columns: 1fr; align-items: center; gap: 10px; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; transition: background .15s; }
 .track:hover { background: rgba(224, 82, 45, .06); }
 .track-no { font: italic 600 18px var(--display); color: var(--tomato); }
 .track-main { display: grid; gap: 1px; min-width: 0; }
@@ -218,3 +218,27 @@ body.no-webgl .sleeve { top: 14px; bottom: 14px; height: auto; max-height: calc(
   .ax-sig-acr { font-size: clamp(32px, 8vw, 46px); }
   body.no-webgl .brand { display: none; }
 }
+
+/* Two editions of one Atlas; no rank or number is assigned to a group. */
+.brand-title { font-size: clamp(40px,5.2vw,72px); line-height: .95; }
+.brand-title span { font-size: .7em; font-style: normal; font-weight: 700; }
+.edition-switch { display:flex; gap:4px; padding:4px; margin-top:12px; width:max-content; border:1px solid var(--line); border-radius:24px; background:var(--paper); pointer-events:auto; font:600 13px var(--sans); }
+.edition-switch a { padding:5px 14px; border-radius:20px; text-decoration:none; color:var(--ink); }
+.edition-switch a[aria-current] { background:var(--ink); color:var(--paper); }
+.panel-editions { display:none; margin:10px 20px 0; }
+body.no-webgl .panel-editions { display:flex; }
+.activity-markers { display:flex!important; flex-wrap:wrap; gap:4px; margin-top:5px; white-space:normal!important; }
+.marker-upcoming,.marker-series { display:inline-block; padding:2px 6px; border-radius:4px; font:600 10px var(--sans); font-style:normal; }
+.marker-upcoming { color:#563800; background:#ffdfa3; }
+.marker-series { color:#174c48; background:#d2ebe5; }
+.marker-legend { font-size:12px; color:var(--muted); }
+.marker-legend span { margin:3px 3px 3px 0; }
+.search-results h2 { font:700 28px var(--display); margin:8px 0; }
+.search-hit { display:grid; gap:6px; width:100%; padding:14px 0; text-align:left; background:none; border:0; border-bottom:1px solid var(--line); }
+.search-hit small { color:var(--tomato); }
+.search-hit span { font-size:13px; color:var(--muted); }
+.sig-sources details { padding:10px 0; border-bottom:1px solid var(--line); }
+.sig-sources summary { cursor:pointer; font-weight:600; }
+.sig-sources li { font-size:12px; overflow-wrap:anywhere; margin:8px 0; }
+@media(max-width:760px) { .brand-title { font-size:36px; } .brand { max-width:calc(100vw - 72px); } .edition-switch { margin-top:8px; } .brand-fine { margin-top:6px; } }
+@media(max-width:380px) { .tabs button { font-size:12px; padding-inline:6px; } }

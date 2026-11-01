@@ -10,7 +10,9 @@ export const ISCA_LIST_URL = 'https://isca-speech.org/Special-Interest-Groups';
 
 const validShape = d => d && Array.isArray(d.sigs) && d.sigs.length > 0 &&
   d.sigs.every(s => s && s.acronym && s.fullName) && Array.isArray(d.events) &&
-  d.editorial && Array.isArray(d.editorial.series) && d.checks && Array.isArray(d.checks.sources);
+  d.editorial && Array.isArray(d.editorial.series) && d.editorial.maintenance &&
+  Array.isArray(d.editorial.maintenance.steps) && d.editorial.maintenance.roster &&
+  d.checks && Array.isArray(d.checks.sources);
 
 const normalise = d => ({
   ...d,
@@ -181,28 +183,28 @@ export function resourcesBlock(data) {
 
 export function aboutBlock(data, meta = {}) {
   const sources = data.checks.sources, ok = sources.filter(s => s.status === 'retrieved').length;
+  const m = data.editorial.maintenance;
   const provenance = meta.source === 'live'
-    ? `This page read the Atlas data published at ${link(LIVE_URL, 'data.json')} when it loaded.`
-    : `The live data could not be loaded, so this page is showing a saved copy taken ${esc(fmtDate(meta.takenAt))}.`;
-  return `<section class="ax-section ax-about"><p class="ax-eyebrow">A directory with a paper trail</p><h2>About this directory</h2>
+    ? `Both editions read the same maintained ${link(LIVE_URL, 'dataset')}.`
+    : `This page is showing a saved copy taken ${esc(fmtDate(meta.takenAt))}.`;
+  return `<section class="ax-section ax-about"><h2>How the Atlas is maintained</h2>
   <p class="ax-lede">${esc(data.editorial.disclosure)}</p>
-  <p>Built from public primary sources. Maintained by Xiaojin, an AI agent; independent of ISCA and not certified by human reviewers. ${link(ISCA_LIST_URL, 'The official ISCA roster')} defines the group list.</p>
+  <p>${esc(m.overview)}</p><p class="ax-note">${provenance}</p>
+  <h3>Daily collection and checking</h3>
+  <p class="ax-status">Last source check: <b>${esc(fmtDate(data.checks.checkedAt))}</b> · ${ok} of ${sources.length} pages retrieved.</p>
+  <ol class="ax-steps">${m.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+  <h3>SIG representative review</h3><p>${esc(m.representativeReview)}</p>
+  <h3>Ask the AI maintainer</h3><p>${esc(m.contact)}</p>
+  <p><a href="${esc(mailto('[ISCA SIG Atlas] Question or correction'))}">${CONTACT}</a></p>
+  <h3>Which SIGs are included?</h3><p>${esc(m.roster.note)} ${link(m.roster.url, 'Official ISCA group list')}</p>
+  <h3>Sources collected for each SIG</h3>
+  <p>Open a group to see the public pages currently included in its daily collection. Each profile also links to its original activity and recording sources. Groups are listed alphabetically, without a rank.</p>
+  <div class="sig-sources">${[...data.sigs].sort((a,b)=>a.acronym.localeCompare(b.acronym)).map(s => {
+    const urls = sources.filter(x => (x.groups || []).includes(s.acronym));
+    return `<details><summary>${esc(s.acronym)} · ${esc(s.fullName)}</summary><p>${link(s.website || s.iscaUrl,'SIG website / ISCA profile')}</p><ul>${urls.map(x => `<li>${link(x.url,x.url)} · ${x.status === 'retrieved' ? 'retrieved' : 'unavailable at last check'}</li>`).join('')}</ul></details>`;
+  }).join('')}</div>
   ${meta.concept ? `<div class="ax-concept">${meta.concept}</div>` : ''}
-  <p class="ax-note">${provenance} The same content is also available as the ${link(CLASSIC_URL, 'classic text directory')}.</p>
-  <h3>Corrections welcome</h3>
-  <p>Send missing resources, revised dates, broken links or suggestions to <a href="${esc(mailto('[ISCA SIG Atlas] Suggestion'))}">${CONTACT}</a>. Please include the SIG name, what should change, and an official source. Mail is checked three times a day; small, verifiable corrections are applied directly and the sender receives a reply describing the change. Anything that needs a decision is forwarded privately to the site’s human supervisor. Messages and sender details are not published.</p>
-  <h3>How this directory is maintained</h3>
-  <p class="ax-status">Last source check: <b>${esc(fmtDate(data.checks.checkedAt))}</b> — ${ok === sources.length ? `all ${sources.length} source pages were retrieved.` : `${ok} of ${sources.length} source pages retrieved; ${sources.length - ok} could not be retrieved in that check.`}</p>
-  <ol class="ax-steps">
-    <li><b>Every day</b>, the official ISCA SIG list, each SIG’s website (or its ISCA page where it has none), the seminar indexes, the activity and event pages cited here and the association resources are collected again. Video platforms and pages that need a login are not collected.</li>
-    <li>Pages that changed since the last review are compared line by line. Updates are published only when they are confirmed on a first-party source, and dates are read from the source page itself.</li>
-    <li>Each day a few SIGs also get a targeted search for new workshops, seminars and recordings, rotating through all the groups in turn.</li>
-    <li>A page that cannot be reached keeps its previous information; a failed check is not treated as a sign that an activity stopped. A passed date does not confirm that an event took place.</li>
-    <li>Larger changes, such as adding or removing a group, are referred to the site’s human supervisor instead of being made automatically.</li>
-  </ol>
-  <p class="ax-note">Do not use the historical synsig.org address; it no longer belongs to SynSIG. Use the SynSIG pages on isca-speech.org.</p>
-  <h3>Update log</h3>
-  <ul class="ax-updates">${data.updates.map(u => `<li><time datetime="${esc(u.date)}">${esc(fmtDate(u.date))}</time><p>${esc(u.text)}</p></li>`).join('')}</ul>
-  <details class="ax-more"><summary>Research notes (${(data.editorial.notes || []).length})</summary><ul class="ax-notes">${(data.editorial.notes || []).map(n => `<li>${esc(n.text)}</li>`).join('')}</ul></details>
+  <h3>Update log</h3><ul class="ax-updates">${data.updates.map(u => `<li><time datetime="${esc(u.date)}">${esc(fmtDate(u.date))}</time><p>${esc(u.text)}</p></li>`).join('')}</ul>
+  <details class="ax-more"><summary>Research notes</summary><ul class="ax-notes">${(data.editorial.notes || []).map(n => `<li>${esc(n.text)}</li>`).join('')}</ul></details>
   </section>`;
 }
