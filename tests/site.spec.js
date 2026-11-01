@@ -281,3 +281,31 @@ for(const width of [390,320]) test('talk controls and whole-record return fit at
   await page.goto(classic+'#series');await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);await fits(page);
   await page.screenshot({path:'qa-artifacts/classic-talk-mobile-'+width+'.jpg',type:'jpeg'});
 });
+
+for (const width of [1024,768]) test('section tabs stay inside the sleeve at '+width+'px', async ({ page }) => {
+  await page.setViewportSize({width,height:900});
+  await openFancy(page);
+  const sleeve=await page.locator('.sleeve').boundingBox();
+  const boxes=await page.locator('.tabs button').evaluateAll(els=>els.map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width};}));
+  expect(boxes.length).toBe(5);
+  expect(boxes.every(b=>b.width>0&&b.left>=sleeve.x-1&&b.right<=sleeve.x+sleeve.width+1)).toBe(true);
+  for (const view of ['library','about']) {
+    await page.locator('.tabs [data-view="'+view+'"]').click();
+    await expect(page.locator('#sleeve-body h2').first()).toBeVisible();
+  }
+  await fits(page);
+  await page.screenshot({path:'qa-artifacts/fancy-tabs-'+width+'.jpg',type:'jpeg'});
+});
+
+test('the open sheet leaves the header and the Whole record control uncovered on a short phone', async ({ page }) => {
+  await page.setViewportSize({width:320,height:568});
+  await openFancy(page);
+  const sheet=await page.locator('.sleeve').boundingBox();
+  const reset=await page.locator('#btn-reset').boundingBox();
+  const editions=await page.locator('.brand .edition-switch').boundingBox();
+  expect(sheet.y).toBeGreaterThanOrEqual(reset.y+reset.height);
+  expect(sheet.y).toBeGreaterThanOrEqual(editions.y+editions.height);
+  await expect(page.locator('.tabs [data-view="about"]')).toBeVisible();
+  await fits(page);
+  await page.screenshot({path:'qa-artifacts/fancy-short-phone-320x568.jpg',type:'jpeg'});
+});

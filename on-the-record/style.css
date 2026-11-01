@@ -187,6 +187,11 @@ body.no-webgl .tools, body.no-webgl .hint, body.no-webgl .sleeve-toggle { displa
   .liner-of { font-size: 10px; letter-spacing: .04em; }
   body.sleeve-open .kicker-extra { display: none; }
 }
+/* ---------- medium widths: the sleeve is only 34vw wide, so let the section tabs wrap instead of hiding the last ones ---------- */
+@media (max-width: 1205px) and (min-width: 761px) {
+  .tabs { flex-wrap: wrap; row-gap: 4px; overflow: visible; }
+  .tabs button { padding: 0 10px; }
+}
 /* ---------- small screens: the sleeve becomes a sheet that peeks from the bottom ---------- */
 @media (max-width: 760px) {
   .brand { left: 16px; top: 14px; max-width: calc(100vw - 32px); }
@@ -214,7 +219,8 @@ body.no-webgl #stage { display: none; }
 body.no-webgl .sleeve { top: 14px; bottom: 14px; height: auto; max-height: calc(100dvh - 28px); }
 @media (max-width: 760px) {
   .sleeve-toggle { top: -30px; height: 30px; }
-  .sleeve { height: 78dvh; }
+  /* Keep the open sheet below the brand and the Whole record button on short screens. */
+  .sleeve { height: min(78dvh, calc(100dvh - 176px)); }
   .ax-sig-acr { font-size: clamp(32px, 8vw, 46px); }
   body.no-webgl .brand { display: none; }
 }

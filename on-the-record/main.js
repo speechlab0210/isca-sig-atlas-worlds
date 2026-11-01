@@ -21,6 +21,8 @@ const $ = s => document.querySelector(s);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const coarse = matchMedia('(pointer: coarse)').matches;
 const narrow = () => innerWidth < 760;
+// A page can start in a 0x0 viewport (hidden tab, pane or frame). Never size the camera or buffers by 0.
+const viewW = () => Math.max(1, innerWidth), viewH = () => Math.max(1, innerHeight);
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 const TAU = Math.PI * 2;
 const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
@@ -115,7 +117,7 @@ let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); }
 catch { webglOK = false; }
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.5, 400);
+const camera = new THREE.PerspectiveCamera(30, viewW() / viewH(), 0.5, 400);
 let controls, composer, tiltH, tiltV, bloom;
 const disc = new THREE.Group();          // everything that turns with the record
 const hits = [];                          // invisible pick targets, one per town
@@ -637,7 +639,7 @@ if (!webglOK) {
 } else {
   try {
   renderer.setPixelRatio(Math.min(devicePixelRatio, coarse || narrow() ? 1.25 : 1.75));
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(viewW(), viewH());
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -666,10 +668,10 @@ if (!webglOK) {
   tiltH = new ShaderPass(TiltShift); tiltV = new ShaderPass(TiltShift);
   tiltV.uniforms.uDir.value.set(0, 1);
   if (!coarse) composer.addPass(tiltH), composer.addPass(tiltV);
-  bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0, 0.45, 0.8);
+  bloom = new UnrealBloomPass(new THREE.Vector2(viewW() / 2, viewH() / 2), 0, 0.45, 0.8);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
-  const setRes = () => { const w = innerWidth * renderer.getPixelRatio(), h = innerHeight * renderer.getPixelRatio(); tiltH.uniforms.uRes.value.set(w, h); tiltV.uniforms.uRes.value.set(w, h); };
+  const setRes = () => { const w = viewW() * renderer.getPixelRatio(), h = viewH() * renderer.getPixelRatio(); tiltH.uniforms.uRes.value.set(w, h); tiltV.uniforms.uRes.value.set(w, h); };
   setRes();
 
   // picking + drag-to-spin
@@ -734,18 +736,25 @@ if (!webglOK) {
   renderer.domElement.addEventListener('pointerleave', () => { state.hovered = -1; showTip(); });
   renderer.domElement.addEventListener('pointercancel', endDrag);
 
-  addEventListener('resize', () => {
+  // Fit the camera and buffers to the viewport. The frame loop calls this too, because a tab
+  // that was hidden or had no size while loading may never receive a resize event.
+  let fittedW = viewW(), fittedH = viewH(), unsized = !(innerWidth > 0 && innerHeight > 0);
+  function fitViewport() {
+    fittedW = viewW(); fittedH = viewH();
     camera.fov = narrow() ? 42 : 30;
-    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+    camera.aspect = fittedW / fittedH; camera.updateProjectionMatrix();
+    if (unsized && innerWidth > 0 && innerHeight > 0) { unsized = false; openSleeve(!narrow()); }
     if (state.selected < 0 && !state.playing) overview();
-    renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); setRes();
-  });
+    renderer.setSize(fittedW, fittedH); composer.setSize(fittedW, fittedH); setRes();
+  }
+  addEventListener('resize', fitViewport);
 
   const bg = new THREE.Color(), dayBg = new THREE.Color(DAY.bg), nightBg = new THREE.Color(NIGHT.bg);
   const dayTable = new THREE.Color(DAY.table), nightTable = new THREE.Color(NIGHT.table), needle = new THREE.Vector3();
   const clock = new THREE.Clock();
   function frame(forcedDt) {
     const dt = forcedDt ?? Math.min(clock.getDelta(), 0.05);
+    if (viewW() !== fittedW || viewH() !== fittedH) fitViewport();
     simNow += dt * 1000;
     const time = reduceMotion ? 0 : simNow / 1000;
 
@@ -837,7 +846,7 @@ if (!webglOK) {
     scene.fog.far = scene.fog.near + 100;
     const shiftTarget = state.sleeveOpen && !narrow() ? Math.min(430, innerWidth * 0.34) / 2 : 0;
     state.viewShift += (shiftTarget - state.viewShift) * Math.min(1, dt * 4);
-    if (Math.abs(state.viewShift) > 0.5) camera.setViewOffset(innerWidth, innerHeight, state.viewShift, 0, innerWidth, innerHeight);
+    if (Math.abs(state.viewShift) > 0.5) camera.setViewOffset(fittedW, fittedH, state.viewShift, 0, fittedW, fittedH);
     else camera.clearViewOffset();
     composer.render();
   }
