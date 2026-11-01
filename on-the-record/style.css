@@ -242,3 +242,18 @@ body.no-webgl .panel-editions { display:flex; }
 .sig-sources li { font-size:12px; overflow-wrap:anywhere; margin:8px 0; }
 @media(max-width:760px) { .brand-title { font-size:36px; } .brand { max-width:calc(100vw - 72px); } .edition-switch { margin-top:8px; } .brand-fine { margin-top:6px; } }
 @media(max-width:380px) { .tabs button { font-size:12px; padding-inline:6px; } }
+
+/* Direct access to the learning collection, before series indexes. */
+.talk-controls { display:flex; gap:12px; flex-wrap:wrap; margin:22px 0 12px; }
+.talk-controls label { display:grid; gap:6px; font-size:12px; flex:1 1 120px; min-width:0; }
+.talk-controls label:first-child { flex-basis:220px; }
+.talk-controls input,.talk-controls select { width:100%; min-width:0; box-sizing:border-box; padding:10px; border:1px solid #bfb3a5; border-radius:8px; background:#fffdf8; color:#29241f; font:inherit; font-size:14px; }
+.talk-row { padding:18px 0; border-bottom:1px solid #d9cfc2; }
+.talk-row h3 { font-size:18px; line-height:1.4; margin:6px 0; overflow-wrap:anywhere; }
+.talk-meta,.talk-source { font-size:12px; line-height:1.5; color:#64574c; margin:4px 0; }
+.talk-index { margin-bottom:40px; }
+
+/* Keep the return control readable on small screens. */
+#btn-reset { background:#302820; color:#fffaf1; border-color:#302820; }
+@media(max-width:760px) { #btn-reset { position:fixed; top:126px; left:12px; width:108px; padding:0 8px; } #btn-reset .tool-label { display:inline; font-size:11px; } #btn-reset svg { width:16px; } .tools { align-items:flex-end; } .tabs button { padding-inline:8px; } }
+@media(max-width:380px) { .tabs button { padding-inline:5px; font-size:11px; } }
