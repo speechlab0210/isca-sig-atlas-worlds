@@ -39,6 +39,14 @@ test.afterEach(async ({ page }) => { expect(page.__siteErrors).toEqual([]); });
 async function openFancy(page, suffix = '') {
   await page.goto(fancy + suffix, {waitUntil:'domcontentloaded'});
   await expect(page.locator('html')).toHaveAttribute('data-source', /live|snapshot/);
+  // CI has software WebGL. Render a real initial frame, then step animations
+  // explicitly so a continuous GPU workload does not starve interaction checks.
+  await page.evaluate(() => {
+    if (window.__record) {
+      window.__record.renderer.setAnimationLoop(null);
+      window.__record.advance(1/30);
+    }
+  });
   await expect(page.locator('.track')).toHaveCount(data.sigs.length);
   if ((await page.locator('#sleeve-toggle').getAttribute('aria-expanded')) === 'false')
     await page.locator('#sleeve-toggle').click();
@@ -115,6 +123,12 @@ test('whole-page search, reset, filters and turntable controls', async ({ page }
   await expect(page.locator('.track')).toHaveCount(data.sigs.length);
   await page.locator('#btn-play').click();
   await expect(page.locator('#btn-play')).toHaveAttribute('aria-pressed','true');
+  const spin = await page.evaluate(() => {
+    const before=window.__record.state.spin;
+    window.__record.advance(0.1);
+    return {before,after:window.__record.state.spin};
+  });
+  expect(spin.after).not.toBe(spin.before);
   await page.locator('#btn-play').click();
   await expect(page.locator('#btn-play')).toHaveAttribute('aria-pressed','false');
   await page.locator('#btn-lamp').click();
