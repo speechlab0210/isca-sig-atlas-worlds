@@ -107,7 +107,7 @@ test('all SIG profiles, sections and edition links work', async ({ page }) => {
 
 test('whole-page search, reset, filters and turntable controls', async ({ page }) => {
   await openFancy(page);
-  await page.locator('#search').fill('five-round');
+  await page.locator('#search').fill('extra search');
   await expect(page.locator('.search-hit')).toHaveCount(1);
   await expect(page.locator('.search-hit')).toContainText('Maintenance');
   await page.locator('.tabs [data-view="tracklist"]').click();
@@ -142,7 +142,7 @@ for (const width of [390,320]) test('mobile navigation and search at '+width+'px
   await fits(page);
   const boxes = await page.locator('.tabs button').evaluateAll(els=>els.map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right};}));
   expect(boxes.every(r=>r.left>=0&&r.right<=width+1)).toBe(true);
-  await page.locator('#search').fill('five-round');
+  await page.locator('#search').fill('extra search');
   await expect(page.locator('.search-hit')).toHaveCount(1);
   await page.locator('.search-hit').click();
   await expect(page.locator('#sleeve-body')).toContainText('AI agent');
@@ -150,7 +150,7 @@ for (const width of [390,320]) test('mobile navigation and search at '+width+'px
   await page.goto(classic, {waitUntil:'domcontentloaded'});
   await expect(page.locator('.sig')).toHaveCount(data.sigs.length);
   await fits(page);
-  await page.locator('#search').fill('five-round');
+  await page.locator('#search').fill('extra search');
   await expect(page.locator('#page-results')).toContainText('Maintenance');
   await page.screenshot({path:'qa-artifacts/classic-mobile-'+width+'.jpg',type:'jpeg'});
 });
@@ -165,4 +165,92 @@ test('snapshot and no-WebGL fallbacks still expose the directory', async ({ page
   await expect(page.locator('#render-status')).toBeVisible();
   await page.locator('.track').first().click();
   await expect(page.locator('.ax-sig-acr')).toBeVisible();
+});
+
+
+test('plain maintenance copy and direct talk index in both editions', async ({ page }) => {
+  await openFancy(page);
+  await expect(page.locator('.brand a[href="#about"]')).toHaveCount(0);
+  await expect(page.locator('.tabs [data-view="tracklist"]')).toHaveText('SIGs');
+  for (const edition of ['fancy','classic']) {
+    if (edition==='fancy') await page.locator('[data-view="about"]').click();
+    else await page.goto(classic+'#about');
+    const body=page.locator(edition==='fancy'?'#sleeve-body':'#content');
+    await expect(body).toContainText('not an official ISCA service yet');
+    await expect(body).toContainText('all 20 SIGs');
+    await expect(body).toContainText('page read successfully');
+    await expect(body).toContainText('organizer’s page');
+    await expect(body).not.toContainText('Research notes');
+    await expect(body).not.toContainText('SALTMIL and SLIM');
+    if (edition==='fancy') await page.locator('[data-view="series"]').click();
+    else await page.locator('[data-section="series"]').click();
+    await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);
+    const actual=await page.locator('.talk-row').evaluateAll(els=>els.map(el=>({url:el.dataset.talkUrl,date:el.dataset.date})));
+    expect(new Set(actual.map(t=>t.url)).size).toBe(data.editorial.talks.length);
+    expect(actual.map(t=>t.url).sort()).toEqual(data.editorial.talks.map(t=>t.url).sort());
+    const dated=actual.filter(t=>t.date).map(t=>t.date);
+    expect(dated).toEqual([...dated].sort().reverse());
+    expect(actual.slice(dated.length).every(t=>!t.date)).toBe(true);
+    await expect(page.locator('.talk-row h3 a').first()).toHaveAttribute('target','_blank');
+    const layout=await page.evaluate(()=>({talk:document.querySelector('.talk-index').getBoundingClientRect().top,series:document.querySelector('.ax-series,.series-row').getBoundingClientRect().top}));
+    expect(layout.talk).toBeLessThan(layout.series);
+    await page.locator('#talk-group').selectOption('SIGML');
+    await expect(page.locator('.talk-row')).toHaveCount(21);
+    await page.locator('#talk-search').fill('Segmental Pronunciation');
+    await expect(page.locator('.talk-row')).toHaveCount(1);
+    await expect(page.locator('.talk-row')).toContainText('Charles McGhee');
+    await page.locator('#talk-search').fill('');
+    await page.locator('#talk-order').selectOption('oldest');
+    const dates=await page.locator('.talk-row').evaluateAll(els=>els.map(el=>el.dataset.date));
+    expect(dates).toEqual([...dates].sort());
+    await page.locator('#talk-group').selectOption('');
+    await page.locator('#talk-order').selectOption('newest');
+    await page.screenshot({path:'qa-artifacts/'+edition+'-talk-index.jpg',type:'jpeg'});
+  }
+  await expect(page.locator('.brand-small')).toHaveCount(0);
+  await expect(page.locator('.mail-link')).toHaveText('Write to the AI agent maintaining this website');
+});
+
+test('automatic spin and robot run, with an obvious reversible camera', async ({ page }) => {
+  await openFancy(page);
+  await expect(page.locator('html')).toHaveAttribute('data-webgl','ready');
+  const motion=await page.evaluate(()=>{
+    const r=window.__record;const spin=r.state.spin;const robot=r.curator.position.clone();
+    r.advance(.2);
+    return {spinning:r.state.spinning,spin:r.state.spin-spin,walk:r.curator.position.distanceTo(robot)};
+  });
+  expect(motion.spinning).toBe(true);expect(Math.abs(motion.spin)).toBeGreaterThan(0);expect(motion.walk).toBeGreaterThan(.1);
+  await page.locator('.track').first().click();
+  await page.evaluate(()=>window.__record.advance(2,.2));
+  const close=await page.evaluate(()=>window.__record.camera.position.distanceTo(window.__record.controls.target));
+  await expect(page.locator('#btn-reset')).toBeVisible();
+  await page.locator('#btn-reset').click();
+  await page.evaluate(()=>window.__record.advance(2,.2));
+  const reset=await page.evaluate(()=>({distance:window.__record.camera.position.distanceTo(window.__record.controls.target),selected:window.__record.state.selected}));
+  expect(reset.selected).toBe(-1);expect(reset.distance).toBeGreaterThan(close+10);
+  await expect(page.locator('.track')).toHaveCount(data.sigs.length);
+  await page.locator('.track').nth(1).click();
+  await page.keyboard.press('Escape');
+  expect(await page.evaluate(()=>window.__record.state.selected)).toBe(-1);
+  await page.locator('#btn-spin').click();
+  const paused=await page.evaluate(()=>{const r=window.__record;r.advance(2,.2);const robot=r.curator.position.clone();r.advance(.2);return {walking:r.state.walking,delta:r.curator.position.distanceTo(robot)};});
+  expect(paused.walking).toBe(false);expect(paused.delta).toBe(0);
+  await page.locator('#btn-spin').click();
+  await page.screenshot({path:'qa-artifacts/fancy-whole-record.jpg',type:'jpeg'});
+});
+
+for(const width of [390,320]) test('talk controls and whole-record return fit at '+width+'px', async ({page})=>{
+  await page.setViewportSize({width,height:844});await openFancy(page);
+  await page.locator('.track').first().click();
+  await page.locator('#btn-reset').click();
+  expect(await page.evaluate(()=>window.__record.state.selected)).toBe(-1);
+  await page.locator('[data-view="series"]').click();
+  await page.locator('#talk-group').selectOption('SLaTE');
+  await expect(page.locator('.talk-row')).toHaveCount(8);
+  await fits(page);
+  const boxes=await page.locator('.tabs button,#btn-reset,.talk-controls input,.talk-controls select').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right};}));
+  expect(boxes.every(b=>b.left>=0&&b.right<=width+1)).toBe(true);
+  await page.screenshot({path:'qa-artifacts/fancy-talk-mobile-'+width+'.jpg',type:'jpeg'});
+  await page.goto(classic+'#series');await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);await fits(page);
+  await page.screenshot({path:'qa-artifacts/classic-talk-mobile-'+width+'.jpg',type:'jpeg'});
 });

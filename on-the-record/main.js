@@ -13,7 +13,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import {
   loadAtlas, esc, FILTERS, passesFilter, matchesQuery, kindLabel, sigDetail, eventsBlock,
-  seriesBlock, resourcesBlock, aboutBlock, splitEvents, eventsFor, totals, fmtDate,
+  seriesBlock, resourcesBlock, aboutBlock, refreshTalks, splitEvents, eventsFor, totals, fmtDate,
 } from '../shared/atlas-core.js';
 import { PAL, mat, WINDOW, BULB, ONAIR, GLOW, buildLandmark, buildCurator, tree, WORD_FOR_SPEECH, LANDMARK } from './models.js';
 
@@ -36,7 +36,7 @@ const NIGHT = { bg: '#15110d', table: '#2a221b', hemi: 0.12, sun: 0.08, exposure
 
 const state = {
   data: null, meta: null, sigs: [], towns: [], selected: -1, hovered: -1, filter: 'all', query: '',
-  spin: 0, spinVel: reduceMotion ? 0 : IDLE_SPIN, spinning: !reduceMotion, dragging: null, targetRot: null,
+  spin: 0, spinVel: IDLE_SPIN, spinning: true, walking: true, walkTime: 0, dragging: null, targetRot: null,
   playing: false, ring: 0, ringStart: 0, playingTown: -1, night: false, nightK: 0,
   view: 'tracklist', sleeveOpen: !narrow(), viewShift: 0, armAngle: 0,
 };
@@ -356,7 +356,7 @@ function setClay(t, on) {
 
 function buildCuratorWalker() {
   curator = buildCurator();
-  curator.scale.setScalar(0.95);
+  curator.scale.setScalar(1.25);
   curator.userData.theta = 0.4;
   const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.7, 10), new THREE.MeshBasicMaterial({ visible: false }));
   hit.position.y = 0.8; hit.userData.curator = true;
@@ -497,7 +497,14 @@ function resetDirectorySearch() {
   document.querySelectorAll('#chips [data-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filter === 'all')));
   $('#count').textContent = 'All groups are equal; listed alphabetically';
 }
-$('#sleeve-back').addEventListener('click', () => { resetDirectorySearch(); select(-1); showView('tracklist'); overview(); history.replaceState(null, '', location.pathname + location.search); });
+function returnToRecord() {
+  stopPlay(); resetDirectorySearch(); state.hovered=-1; select(-1); showView('tracklist'); overview();
+  history.replaceState(null, '', location.pathname + location.search);
+}
+$('#sleeve-back').addEventListener('click', returnToRecord);
+$('#btn-reset').addEventListener('click', returnToRecord);
+sbody.addEventListener('input',e=>{if(e.target.id==='talk-search')refreshTalks(state.data)});
+sbody.addEventListener('change',e=>{if(['talk-group','talk-order'].includes(e.target.id))refreshTalks(state.data)});
 $('#sleeve-toggle').addEventListener('click', () => openSleeve(!state.sleeveOpen));
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.view === 'tracklist') resetDirectorySearch();
@@ -558,12 +565,12 @@ function updateSpinButton() {
   const moving = state.playing || (state.spinning && state.targetRot === null);
   $('#btn-spin').setAttribute('aria-pressed', String(!moving));
   $('#btn-spin').querySelector('.tool-label').textContent = moving ? 'Pause' : 'Spin';
-  $('#btn-spin').setAttribute('aria-label', moving ? 'Pause the record' : 'Resume the record');
+  $('#btn-spin').setAttribute('aria-label', moving ? 'Pause record and robot motion' : 'Resume record and robot motion');
 }
 $('#btn-spin').addEventListener('click', () => {
   const moving = state.playing || (state.spinning && state.targetRot === null);
   stopPlay();
-  state.spinning = !moving;
+  state.spinning = !moving; state.walking = !moving;
   state.spinVel = 0;
   if (state.spinning && state.selected >= 0) { select(-1); showView('tracklist'); overview(); }
   updateSpinButton();
@@ -595,7 +602,7 @@ addEventListener('keydown', e => {
   if (el?.matches('input, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
   const n = state.towns.length;
   if (e.key === '/') { e.preventDefault(); stopPlay(); select(-1); showView('tracklist'); overview(); $('#search').focus(); }
-  else if (e.key === 'Escape') { stopPlay(); if (state.selected >= 0) { select(-1); showView('tracklist'); overview(); } }
+  else if (e.key === 'Escape') returnToRecord();
   else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { stopPlay(); select(((state.selected < 0 ? 0 : state.selected + (e.key === 'ArrowRight' ? 1 : -1)) + n) % n); }
   else if (webglOK && e.key === ' ' && !el?.closest('button, a, summary')) { e.preventDefault(); $('#btn-play').click(); }
   else if (webglOK && e.key.toLowerCase() === 'n') $('#btn-lamp').click();
@@ -647,6 +654,7 @@ if (!webglOK) {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.07;
   controls.enablePan = false;
+  controls.addEventListener('start', () => { fly = null; });
   controls.minDistance = 12; controls.maxDistance = 180;
   controls.minPolarAngle = 0.25; controls.maxPolarAngle = 1.2;
   const [p0, t0] = overviewPose();
@@ -721,6 +729,7 @@ if (!webglOK) {
     const h = pickTown(e);
     if (h === 'curator') { showView('about'); return; }
     if (h >= 0) { stopPlay(); select(h); }
+    else if (state.selected >= 0) returnToRecord();
   });
   renderer.domElement.addEventListener('pointerleave', () => { state.hovered = -1; showTip(); });
   renderer.domElement.addEventListener('pointercancel', endDrag);
@@ -809,12 +818,12 @@ if (!webglOK) {
     GLOW.emissiveIntensity = 0.45 + 0.35 * Math.sin(time * 2.5);
 
     // the curator walks the lane between the outer and middle grooves
-    if (!reduceMotion) curator.userData.theta -= dt * 0.11;
+    if (state.walking) { curator.userData.theta -= dt * 0.24; state.walkTime += dt; }
     const th = curator.userData.theta;
     curator.position.set(Math.sin(th) * LANE_R, TOP, Math.cos(th) * LANE_R);
     curator.rotation.y = th - Math.PI / 2;
-    curator.userData.legs.forEach((l, n) => { l.rotation.x = Math.sin(time * 7 + n * Math.PI) * 0.5; });
-    curator.position.y = TOP + Math.abs(Math.sin(time * 7)) * 0.05;
+    curator.userData.legs.forEach((l, n) => { l.rotation.x = Math.sin(state.walkTime * 10 + n * Math.PI) * 0.65; });
+    curator.position.y = TOP + Math.abs(Math.sin(state.walkTime * 10)) * 0.10;
 
     // camera
     if (fly) {
@@ -839,7 +848,7 @@ if (!webglOK) {
     frame();
   });
   document.documentElement.dataset.webgl = 'ready';
-  window.__record = { state, camera, renderer, get controls() { return controls; }, advance: (sec, step = 1 / 30) => { for (let t = 0; t < sec; t += step) frame(step); } };
+  window.__record = { state, camera, renderer, get curator() { return curator; }, get controls() { return controls; }, advance: (sec, step = 1 / 30) => { for (let t = 0; t < sec; t += step) frame(step); } };
   } catch (error) {
     console.warn('The 3D view could not start; the text directory remains available.', error);
     showDirectoryFallback();

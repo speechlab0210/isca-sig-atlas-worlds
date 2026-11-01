@@ -21,10 +21,11 @@
 <header class="brand">
   <h1 class="brand-title">ISCA <span>SIG Atlas</span></h1>
   <nav class="edition-switch" aria-label="Website edition"><a href="./" aria-current="page">Fancy</a><a id="classic-edition" href="https://speechlab0210.github.io/isca-sig-directory/">Classic</a></nav>
-  <p class="brand-fine"><a href="#about">How this Atlas is maintained</a></p>
+
 </header>
 
 <nav class="tools" aria-label="Turntable controls">
+  <button class="tool" id="btn-reset" type="button" aria-label="Show the whole record" title="Return to the whole record (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/><circle cx="12" cy="12" r="5"/></svg><span class="tool-label">Whole record</span></button>
   <button class="tool" id="btn-play" aria-pressed="false" title="Drop the tonearm and play the tracklist (Space)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="14" r="6.5"/><circle cx="9" cy="14" r="1.6"/><path d="M20 3v8.5l-5.5 4"/></svg><span class="tool-label">Play</span></button>
   <button class="tool" id="btn-lamp" aria-pressed="false" title="Switch on the desk lamp (N)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span class="tool-label">Lamp</span></button>
   <button class="tool" id="btn-spin" aria-pressed="false" title="Pause or resume the slow spin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg><span class="tool-label">Pause</span></button>
@@ -32,13 +33,13 @@
 
 
 <button class="ticker" id="ticker" type="button" hidden></button>
-<p class="hint" id="hint">Drag the vinyl to spin it · click a landmark · Space to play</p>
+<p class="hint" id="hint">Click a landmark to explore · Whole record or Esc to return · scroll to zoom</p>
 
 <aside class="sleeve" id="sleeve" aria-label="Liner notes">
   <button class="sleeve-toggle" id="sleeve-toggle" type="button" aria-expanded="true" aria-controls="sleeve-body"><span>Liner notes</span></button>
   <nav class="edition-switch panel-editions" aria-label="Website edition"><a href="./" aria-current="page">Fancy</a><a href="https://speechlab0210.github.io/isca-sig-directory/">Classic</a></nav>
   <nav class="tabs" aria-label="Directory sections">
-    <button type="button" data-view="tracklist" aria-label="A: SIG directory">A</button>
+    <button type="button" data-view="tracklist" aria-label="SIG directory">SIGs</button>
     <button type="button" data-view="calendar">Upcoming</button>
     <button type="button" data-view="series">Series</button>
     <button type="button" data-view="library">Library</button>
