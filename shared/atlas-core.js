@@ -178,8 +178,20 @@ function talkControls(data) {
  const groups=[...new Set((data.editorial.talks||[]).map(t=>t.sig))].sort();
  return `<div class="talk-controls"><label>Find a talk<input id="talk-search" type="search" placeholder="Title, speaker or topic…"></label><label>SIG / series<select id="talk-group"><option value="">All SIGs & series</option>${groups.map(s=>`<option>${esc(s)}</option>`).join('')}</select></label><label>Sort<select id="talk-order"><option value="newest">Newest dated first</option><option value="oldest">Oldest dated first</option><option value="title">Title A–Z</option></select></label></div>`;
 }
+function talkThumbnail(t) {
+ const href=safeUrl(t.url), candidate=youTubeId(t.url);
+ const id=candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : null;
+ if(!href)return '';
+ return `<a class="talk-thumb${id?'':' is-unavailable'}" href="${esc(href)}" target="_blank" rel="noopener noreferrer" aria-label="Watch: ${esc(t.title)} (opens in a new tab)"><span class="talk-thumb-fallback">${id?'Preview unavailable':'Recording on the source site'}</span>${id?`<img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="" width="480" height="360" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="talk-play" aria-hidden="true">▶</span><span class="talk-watch" aria-hidden="true">Watch recording</span></a>`;
+}
+document.addEventListener('error', event => {
+ const img=event.target;
+ if(img instanceof HTMLImageElement && img.matches('.talk-thumb img')) {
+  img.hidden=true;img.parentElement.classList.add('is-unavailable');
+ }
+}, true);
 function talkRows(rows) {
- return rows.map(t=>`<article class="talk-row" data-talk-url="${esc(t.url)}" data-date="${esc(t.date||'')}"><p class="talk-meta">${esc(t.sig)} · ${esc(t.series)}${t.date?` · <time datetime="${esc(t.date)}">${esc(fmtDate(t.date))}</time>`:' · Date not listed'}</p><h3>${link(t.url,t.title)}</h3>${t.speaker?`<p>${esc(t.speaker)}</p>`:''}<p class="talk-source">${link(t.source,'Source')}</p></article>`).join('')||'<p>No talks match. Try another keyword or SIG.</p>';
+ return rows.map(t=>`<article class="talk-row" data-talk-url="${esc(t.url)}" data-date="${esc(t.date||'')}">${talkThumbnail(t)}<p class="talk-meta">${esc(t.sig)} · ${esc(t.series)}${t.date?` · <time datetime="${esc(t.date)}">${esc(fmtDate(t.date))}</time>`:' · Date not listed'}</p><h3>${link(t.url,t.title)}</h3>${t.speaker?`<p>${esc(t.speaker)}</p>`:''}<p class="talk-source">${link(t.source,'Source')}</p></article>`).join('')||'<p>No talks match. Try another keyword or SIG.</p>';
 }
 function talkIndex(data) {
  const rows=talkList(data);
@@ -194,7 +206,7 @@ function refreshTalks(data) {
 export { refreshTalks };
 export function seriesBlock(data) {
   const pill = p => ({ live: 'Series listed', paused: 'Archive', announced: 'Announced' })[p] || p;
-  return `<section class="ax-section"><p class="ax-eyebrow">Listen in</p>${talkIndex(data)}<h2>Browse by series <span class="ax-count">${data.editorial.series.length}</span></h2>
+  return `<section class="ax-section"><h2>Lectures</h2>${talkIndex(data)}<h2>Browse by series <span class="ax-count">${data.editorial.series.length}</span></h2>
   <p class="ax-note">Series status is dated, not a promise of the next session. Follow the organizer’s page for registration and schedule changes.</p>
   <ul class="ax-series">${data.editorial.series.map(s => `<li class="ax-series-item"><p class="ax-eyebrow">${esc(s.sig)} · ${esc(pill(s.pill))}</p><h3>${esc(s.name)}</h3><p class="ax-cadence">${esc(s.cad)}</p><p>${esc(s.text)}</p>${s.next ? `<p>${esc(s.next)}</p>` : ''}${linkRow(s.links)}<p class="ax-fine">Content review: ${esc(fmtDate(s.reviewed || data.generated))}</p></li>`).join('')}</ul></section>`;
 }
@@ -211,7 +223,7 @@ export function aboutBlock(data, meta = {}) {
   const provenance = meta.source === 'live'
     ? `Both editions read the same maintained ${link(LIVE_URL, 'dataset')}.`
     : `This page is showing a saved copy taken ${esc(fmtDate(meta.takenAt))}.`;
-  return `<section class="ax-section ax-about"><h2>How the Atlas is maintained</h2>
+  return `<section class="ax-section ax-about"><h2>Maintenance</h2>
   <p class="ax-lede">${esc(data.editorial.disclosure)}</p>
   <p>${esc(m.overview)}</p><p class="ax-note">${provenance}</p>
   <h3>Daily collection and checking</h3>

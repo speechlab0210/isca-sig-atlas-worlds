@@ -112,7 +112,7 @@ test('all SIG profiles, sections and edition links work', async ({ page }) => {
     await expect(page.locator('.ax-sig .ax-lede')).toHaveText(sig.description);
     await expect(page.locator('#classic-edition')).toHaveAttribute('href',classic+'#sig-'+encodeURIComponent(sig.acronym));
   }
-  for (const view of ['calendar','series','library','about']) {
+  for (const view of ['calendar','series','about']) {
     await page.locator('.tabs [data-view="'+view+'"]').click();
     await expect(page.locator('#sleeve-body h2').first()).toBeVisible();
     await expect(page.locator('#sleeve-body .ax-count')).toHaveCount(0);
@@ -302,9 +302,9 @@ for (const width of [1024,768]) test('section tabs stay inside the sleeve at '+w
   await openFancy(page);
   const sleeve=await page.locator('.sleeve').boundingBox();
   const boxes=await page.locator('.tabs button').evaluateAll(els=>els.map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width};}));
-  expect(boxes.length).toBe(5);
+  expect(boxes.length).toBe(4);
   expect(boxes.every(b=>b.width>0&&b.left>=sleeve.x-1&&b.right<=sleeve.x+sleeve.width+1)).toBe(true);
-  for (const view of ['library','about']) {
+  for (const view of ['series','about']) {
     await page.locator('.tabs [data-view="'+view+'"]').click();
     await expect(page.locator('#sleeve-body h2').first()).toBeVisible();
   }
@@ -323,4 +323,62 @@ test('the open sheet leaves the header and the Whole record control uncovered on
   await expect(page.locator('.tabs [data-view="about"]')).toBeVisible();
   await fits(page);
   await page.screenshot({path:'qa-artifacts/fancy-short-phone-320x568.jpg',type:'jpeg'});
+});
+
+for (const width of [1440,390,320]) test('matching sections and playable lecture previews at '+width+'px', async ({ page }) => {
+  await page.setViewportSize({width,height:1000});
+  for (const edition of ['fancy','classic']) {
+    if (edition === 'fancy') await openFancy(page);
+    else await page.goto(classic);
+    const nav=page.locator(edition==='fancy'?'.tabs button':'.sidebar [data-section] span');
+    await expect(nav).toHaveText(['Upcoming','Lectures','SIGs','Maintenance']);
+    await expect(page.locator('[data-view="library"],[data-section="resources"]')).toHaveCount(0);
+    await page.screenshot({path:`qa-artifacts/${edition}-sections-${width}.jpg`,type:'jpeg'});
+    await page.locator(edition==='fancy'?'[data-view="series"]':'[data-section="series"]').click();
+    await expect(page.getByRole('heading',{name:'Lectures',exact:true})).toBeVisible();
+    await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);
+    const previews=await page.locator('.talk-row').evaluateAll(rows=>rows.map(row=>({
+      url:row.dataset.talkUrl, href:row.querySelector('.talk-thumb')?.href,
+      src:row.querySelector('.talk-thumb img')?.getAttribute('src'),
+      label:row.querySelector('.talk-thumb')?.getAttribute('aria-label')
+    })));
+    for (const preview of previews) {
+      expect(preview.href).toBe(preview.url);
+      const talk=data.editorial.talks.find(t=>t.url===preview.url);
+      expect(talk).toBeTruthy();
+      expect(preview.label.replace(/\s+/g,' ')).toBe(`Watch: ${talk.title.replace(/\s+/g,' ')} (opens in a new tab)`);
+      const u=new URL(preview.url);
+      if(u.hostname==='www.youtube.com')expect(preview.src).toBe('https://i.ytimg.com/vi/'+u.searchParams.get('v')+'/hqdefault.jpg');
+      else expect(preview.src).toBeUndefined();
+    }
+    const first=page.locator('.talk-thumb img').first();
+    await first.scrollIntoViewIfNeeded();
+    await expect.poll(()=>first.evaluate(img=>img.complete&&img.naturalWidth>120)).toBe(true);
+    await fits(page);
+    await page.screenshot({path:`qa-artifacts/${edition}-lecture-previews-${width}.jpg`,type:'jpeg'});
+    await page.locator('#talk-group').selectOption('SIGML');
+    await page.locator('#talk-search').fill('Segmental Pronunciation');
+    await expect(page.locator('.talk-row')).toHaveCount(1);
+    await expect(page.locator('.talk-thumb')).toHaveCount(1);
+    await expect(page.locator('.talk-thumb')).toHaveAttribute('href',await page.locator('.talk-row h3 a').getAttribute('href'));
+    await page.locator('#talk-search').fill('no-matching-lecture-92815');
+    await expect(page.locator('#talk-results')).toContainText('No talks match');
+    await expect(page.locator('.talk-thumb')).toHaveCount(0);
+  }
+});
+
+test('retired resource links lead to Lectures and unavailable previews retain a recording link', async ({ page }) => {
+  await page.route('https://i.ytimg.com/**',route=>route.abort());
+  for (const edition of ['fancy','classic']) {
+    if(edition==='fancy')await openFancy(page,'#library');
+    else await page.goto(classic+'#resources');
+    await expect(page).toHaveURL((edition==='fancy'?fancy:classic)+'#series');
+    await expect(page.getByRole('heading',{name:'Lectures',exact:true})).toBeVisible();
+    const card=page.locator('.talk-thumb').first();
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toHaveClass(/is-unavailable/);
+    await expect(card.locator('img')).toBeHidden();
+    await expect(card).toContainText('Preview unavailable');
+    await expect(card).toHaveAttribute('href',await page.locator('.talk-row h3 a').first().getAttribute('href'));
+  }
 });

@@ -13,7 +13,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import {
   loadAtlas, esc, FILTERS, passesFilter, matchesQuery, kindLabel, sigDetail, eventsBlock,
-  seriesBlock, resourcesBlock, aboutBlock, refreshTalks, splitEvents, eventsFor, totals, fmtDate,
+  seriesBlock, aboutBlock, refreshTalks, splitEvents, eventsFor, totals, fmtDate,
 } from '../shared/atlas-core.js';
 import { PAL, mat, WINDOW, BULB, ONAIR, GLOW, buildLandmark, buildCurator, tree, WORD_FOR_SPEECH, LANDMARK } from './models.js';
 
@@ -427,7 +427,7 @@ function trackRow(t) {
 }
 function tracklist() {
   const matching = state.towns.filter(t => t.sig._on).sort((a,b)=>a.sig.acronym.localeCompare(b.sig.acronym));
-  return `<section class="tracks"><h2>All SIGs, one Atlas</h2><p class="ax-note">Each landmark represents an equal community. Choose a SIG to explore its sources, events and recordings.</p>
+  return `<section class="tracks"><h2>SIGs</h2><p class="ax-note">Each landmark represents an equal community. Choose a SIG to explore its sources, events and recordings.</p>
   <p class="marker-legend"><span class="marker-upcoming">Upcoming event</span> A dated event is ahead. <span class="marker-series">Series listed</span> A seminar series is listed; this does not mean it is live now.</p>
   <ul class="tracklist">${matching.map(trackRow).join('')}</ul></section>`;
 }
@@ -442,16 +442,17 @@ let searchPages;
 function getSearchPages() {
   return searchPages ||= [
     ...state.sigs.map((s,i)=>({title:s.acronym+' · '+s.fullName,kind:'SIG profile',view:'sig',arg:i,text:pageText(sigDetail(state.data,s))})),
-    ...[['calendar','Upcoming and past events',eventsBlock],['series','Seminars, series and recordings',seriesBlock],['library','ISCA resources',resourcesBlock],['about','Maintenance, sources and updates',aboutBlock]].map(([view,title,fn])=>({view,title,kind:'Atlas page',text:pageText(fn(state.data,{...state.meta,concept:CONCEPT}))}))
+    ...[['calendar','Upcoming',eventsBlock],['series','Lectures',seriesBlock],['about','Maintenance',aboutBlock]].map(([view,title,fn])=>({view,title,kind:'Atlas page',text:pageText(fn(state.data,{...state.meta,concept:CONCEPT}))}))
   ];
 }
 function searchResults() {
   const q=state.query.trim().toLocaleLowerCase(), pages=getSearchPages();
   const hits=pages.map((p,i)=>({...p,i,pos:p.text.toLocaleLowerCase().indexOf(q)})).filter(p=>(p.pos>=0||p.title.toLocaleLowerCase().includes(q))&&(p.view!=='sig'||passesFilter(state.sigs[p.arg],state.filter)));
   $('#count').textContent=`${hits.length} matching pages · full Atlas search`;
-  return `<section class="search-results"><h2>Search all pages</h2><p class="ax-note">Profiles, events, series, recordings, resources and maintenance. Topic/language filters apply only to SIG profiles.</p>${hits.length?hits.map(p=>`<article><button type="button" class="search-hit" data-result="${p.i}"><small>${esc(p.kind)}</small><b>${esc(p.title)}</b><span>${esc(p.text.slice(Math.max(0,p.pos-65),Math.max(0,p.pos-65)+220))}…</span></button></article>`).join(''):'<p class="ax-empty" role="status">No pages match this search.</p>'}<button type="button" class="chip" data-clear-search>Clear search and filters</button></section>`;
+  return `<section class="search-results"><h2>Search all pages</h2><p class="ax-note">Upcoming events, lectures, SIG profiles and maintenance. Topic/language filters apply only to SIG profiles.</p>${hits.length?hits.map(p=>`<article><button type="button" class="search-hit" data-result="${p.i}"><small>${esc(p.kind)}</small><b>${esc(p.title)}</b><span>${esc(p.text.slice(Math.max(0,p.pos-65),Math.max(0,p.pos-65)+220))}…</span></button></article>`).join(''):'<p class="ax-empty" role="status">No pages match this search.</p>'}<button type="button" class="chip" data-clear-search>Clear search and filters</button></section>`;
 }
 function showView(view, arg) {
+  if (view === 'library') view = 'series'; // Keep old links useful after removing the Library section.
   state.view = view;
   document.body.dataset.view = view;
   let html = '';
@@ -460,7 +461,6 @@ function showView(view, arg) {
   else if (view === 'search') html = searchResults();
   else if (view === 'calendar') html = eventsBlock(state.data);
   else if (view === 'series') html = seriesBlock(state.data);
-  else if (view === 'library') html = resourcesBlock(state.data);
   else if (view === 'about') html = aboutBlock(state.data, { ...state.meta, concept: CONCEPT });
   sbody.innerHTML = html.replace(/ <span class="ax-count">[^<]*<\/span>/g, '');
   sbody.scrollTop = 0;
@@ -469,7 +469,7 @@ function showView(view, arg) {
   openSleeve(true);
   const hash = view === 'sig' ? '#sig-' + encodeURIComponent(state.sigs[arg].acronym) : view === 'tracklist' ? '' : '#' + view;
   history.replaceState(null, '', location.pathname + location.search + hash);
-  const classicHash = view === 'sig' ? hash : {tracklist:'#directory',calendar:'#events',series:'#series',library:'#resources',about:'#about'}[view] || '#directory';
+  const classicHash = view === 'sig' ? hash : {tracklist:'#directory',calendar:'#events',series:'#series',about:'#about'}[view] || '#directory';
   document.querySelectorAll('.edition-switch a:not([aria-current])').forEach(a=>a.href='https://speechlab0210.github.io/isca-sig-directory/'+classicHash);
 }
 function openSleeve(open) {

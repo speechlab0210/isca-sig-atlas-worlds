@@ -268,3 +268,17 @@ body.no-webgl .panel-editions { display:flex; }
 .tool { transition:transform .2s; }
 .talk-row h3 { font:600 17px/1.45 var(--sans); text-transform:none; letter-spacing:normal; }
 body[data-view="series"] .finder { display:none; }
+
+/* Lectures: recognizable recording cards, with a usable link if a preview is unavailable. */
+#talk-results { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:24px 20px; }
+.talk-row { min-width:0; padding:0 0 18px; }
+.talk-thumb { position:relative; display:block; aspect-ratio:16/9; overflow:hidden; border-radius:10px; background:#182536; color:#fff; text-decoration:none; margin-bottom:12px; }
+.talk-thumb img { position:absolute; inset:0; display:block; width:100%; height:100%; object-fit:cover; }
+.talk-thumb-fallback { position:absolute; inset:0; display:grid; place-items:center; padding:26px 20px 65px; text-align:center; font:500 13px/1.5 var(--sans); color:#e4eaf2; }
+.talk-play { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:grid; place-items:center; width:48px; height:34px; border-radius:10px; background:rgba(12,18,27,.82); color:#fff; font-size:19px; }
+.talk-watch { position:absolute; right:8px; bottom:8px; border-radius:4px; background:rgba(12,18,27,.88); color:#fff; padding:4px 7px; font:600 11px/1.3 var(--sans); }
+.talk-thumb:hover .talk-play,.talk-thumb:focus-visible .talk-play { background:#c33c23; }
+.talk-thumb.is-unavailable .talk-play { top:68%; }
+.talk-row h3 a { color:var(--ink); text-decoration:none; }
+.talk-row h3 a:hover { text-decoration:underline; }
+.talk-row > p:not(.talk-meta):not(.talk-source) { font-size:14px; line-height:1.5; margin:6px 0; }
