@@ -4,8 +4,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const origin = 'https://speechlab0210.github.io';
-const fancy = origin + '/isca-sig-atlas-worlds/';
-const legacyFancy = fancy + 'on-the-record/';
+const entry = origin + '/isca-sig-atlas-worlds/';
+const fancy = entry + 'on-the-record/';
 const classic = origin + '/isca-sig-directory/';
 const mode = process.env.QA_MODE || 'staged';
 const data = JSON.parse(fs.readFileSync('.qa-data/docs/data.json', 'utf8'));
@@ -59,11 +59,11 @@ async function fits(page) {
 
 test('release bytes and live data agree with the checked revisions', async ({ request }) => {
   test.skip(mode !== 'live', 'Byte verification applies to the real published site.');
-  const root = await request.get(fancy + '?qa=' + process.env.GITHUB_SHA);
+  const root = await request.get(entry + '?qa=' + process.env.GITHUB_SHA);
   expect(root.ok()).toBe(true);
   expect(digest(await root.body())).toBe(digest(fs.readFileSync('index.html')));
   for (const name of ['index.html','main.js','style.css']) {
-    const r = await request.get(legacyFancy + name + '?qa=' + process.env.GITHUB_SHA);
+    const r = await request.get(fancy + name + '?qa=' + process.env.GITHUB_SHA);
     expect(r.ok()).toBe(true);
     expect(digest(await r.body())).toBe(digest(fs.readFileSync('on-the-record/' + name)));
   }
@@ -79,23 +79,60 @@ test('release bytes and live data agree with the checked revisions', async ({ re
   }
 });
 
-test('root and legacy entries preserve direct links and the same live directory', async ({ page }) => {
-  for (const entry of [fancy,legacyFancy]) {
-    await openFancy(page, '?entry-check=1#sig-SLaTE', entry);
-    await expect(page).toHaveURL(entry+'?entry-check=1#sig-SLaTE');
+for (const width of [1440,390,320]) test('root defaults to Classic with reversible edition switching at '+width+'px', async ({ page }) => {
+  await page.setViewportSize({width,height:1000});
+  await page.goto(entry+'?entry-check=1');
+  await expect(page).toHaveURL(classic+'?entry-check=1');
+  await expect(page.locator('.sig')).toHaveCount(data.sigs.length);
+  await expect(page.locator('.edition-switch [aria-current="page"]')).toHaveText('Classic');
+  await fits(page);
+  await page.screenshot({path:'qa-artifacts/classic-default-'+width+'.jpg',type:'jpeg'});
+  await page.locator('#fancy-edition').click();
+  await expect(page).toHaveURL(fancy);
+  await expect(page.locator('html')).toHaveAttribute('data-source','live');
+  await page.locator('#classic-edition').click();
+  await expect(page).toHaveURL(classic+'#directory');
+  await expect(page.locator('.sig')).toHaveCount(data.sigs.length);
+  await page.reload();
+  await expect(page).toHaveURL(classic+'#directory');
+});
+
+test('root preserves queries, SIG links and both editions section names', async ({ page }) => {
+  for (const [hash,target] of [['#sig-SLaTE','#sig-SLaTE'],['#calendar','#events'],['#events','#events'],['#tracklist','#directory'],['#directory','#directory'],['#library','#series'],['#resources','#series'],['#series','#series'],['#about','#about']]) {
+    await page.goto(entry+'?entry-check=1'+hash);
+    await expect(page).toHaveURL(classic+'?entry-check=1'+target);
+    await expect(page.locator('#content h1')).toBeVisible();
+    if (target==='#sig-SLaTE') await expect(page.locator('#sig-SLaTE')).toHaveAttribute('open','');
+    if (target==='#series') await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);
+    if (target==='#events') await expect(page.locator('[data-section="events"]')).toHaveAttribute('aria-current','page');
+  }
+});
+
+test('Fancy direct links and Classic round trips preserve the live directory', async ({ page }) => {
+    await openFancy(page, '?entry-check=1#sig-SLaTE');
+    await expect(page).toHaveURL(fancy+'?entry-check=1#sig-SLaTE');
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href',fancy);
     await expect(page.locator('html')).toHaveAttribute('data-source','live');
     await expect(page.locator('html')).toHaveAttribute('data-webgl','ready');
     await expect(page.locator('.ax-sig-acr')).toHaveText('SLaTE');
     await page.locator('.tabs [data-view="series"]').click();
-    await expect(page).toHaveURL(entry+'?entry-check=1#series');
+    await expect(page).toHaveURL(fancy+'?entry-check=1#series');
     await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);
     await page.locator('#classic-edition').click();
     await expect(page).toHaveURL(classic+'#series');
     await page.locator('#fancy-edition').click();
     await expect(page).toHaveURL(fancy+'#series');
     await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);
-  }
+});
+
+test('root provides both edition links when JavaScript is disabled', async ({ browser }) => {
+  const context = await browser.newContext({javaScriptEnabled:false});
+  const page = await context.newPage();
+  if (mode==='staged') await page.route(entry,route=>route.fulfill({contentType:'text/html',body:fs.readFileSync('index.html')}));
+  await page.goto(entry);
+  await expect(page.getByRole('link',{name:'Classic edition'})).toHaveAttribute('href',classic);
+  await expect(page.getByRole('link',{name:'Fancy edition'})).toHaveAttribute('href','on-the-record/');
+  await context.close();
 });
 
 test('all SIG profiles, sections and edition links work', async ({ page }) => {
