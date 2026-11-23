@@ -123,7 +123,7 @@ function sourceCheck(data, url) {
 export function eventItem(e, { showSig = true } = {}) {
   return `<li class="ax-event"><time class="ax-event-date" datetime="${esc(e.start)}">${esc(e.displayDate || fmtDate(e.start))}</time>` +
     `<div class="ax-event-body">${showSig ? `<span class="ax-eyebrow">${esc(e.sig)}</span>` : ''}<h4>${link(e.url, e.title)}</h4>` +
-    `${e.details ? `<p>${esc(e.details)}</p>` : ''}<p class="ax-fine">${e.verified ? 'Source reviewed' : 'Not fully confirmed; reconfirm before making plans'} · ${esc(fmtDate(e.reviewed))}</p></div></li>`;
+    `${e.details ? `<p>${esc(e.details)}</p>` : ''}<p class="ax-fine">${e.verified ? 'AI source check' : 'Not fully confirmed; reconfirm before making plans'} · ${esc(fmtDate(e.reviewed))}</p></div></li>`;
 }
 
 /* ---------- content blocks (each concept styles the ax-* classes its own way) ---------- */
@@ -148,7 +148,7 @@ export function sigDetail(data, s) {
   <p class="ax-lede">${esc(s.description)}</p>
   <div class="ax-links">${s.website ? link(s.website, 'SIG website') : ''}${link(s.iscaUrl, 'Official ISCA profile')}</div>
   ${sourceCheck(data, s.website || s.iscaUrl)}
-  <p class="ax-fine">${s.contentReviewed ? `Profile reviewed ${esc(fmtDate(s.contentReviewed))}; first compiled ${esc(fmtDate(data.generated))}.` : `Profile first compiled ${esc(fmtDate(data.generated))}.`} A page-access check is not a review of every fact.</p>
+  <p class="ax-fine">${s.contentReviewed ? `AI profile check: ${esc(fmtDate(s.contentReviewed))}; first compiled ${esc(fmtDate(data.generated))}.` : `Profile first compiled ${esc(fmtDate(data.generated))}.`} AI checks do not indicate human SIG confirmation. Accessing a page does not establish that every fact is correct.</p>
   <section class="ax-block"><h3>Activities &amp; recurring events</h3><ul class="ax-acts">${s.activities.map(a => `<li class="ax-act" data-type="${esc(a.type || 'other')}"><span class="ax-act-type">${esc(ACT_LABEL[a.type] || 'Activity')}</span><h4>${a.url ? link(a.url, a.name) : esc(a.name)}</h4>${a.cadence ? `<p>${esc(a.cadence)}</p>` : ''}${a.last ? `<p>${esc(a.last)}</p>` : ''}</li>`).join('')}</ul></section>
   ${s.series.length ? `<section class="ax-block"><h3>Seminars &amp; lecture series</h3><ul class="ax-acts">${s.series.map(w => `<li class="ax-act" data-type="webinar-series"><span class="ax-act-type">${w.active ? 'Series listed' : 'No current schedule found'}</span><h4>${link(w.pageUrl, w.name)}</h4><p>${esc(w.cadence || 'Schedule announced by the organizer')}</p>${w.notes ? `<p>${esc(w.notes)}</p>` : ''}${w.recUrl ? `<p>${link(w.recUrl, 'Recording index')}</p>` : ''}</li>`).join('')}</ul></section>` : ''}
   <section class="ax-block"><h3>Recordings &amp; video</h3>${s.videos.length ? `<ul class="ax-recs">${rec}</ul><p class="ax-fine">Links point to external hosts; this site does not copy or host the videos.</p>` : '<p class="ax-empty">No public recording link has been located in this directory. This does not establish that none exists.</p>'}</section>
@@ -208,7 +208,7 @@ export function seriesBlock(data) {
   const pill = p => ({ live: 'Series listed', paused: 'Archive', announced: 'Announced' })[p] || p;
   return `<section class="ax-section"><h2>Lectures</h2>${talkIndex(data)}<h2>Browse by series <span class="ax-count">${data.editorial.series.length}</span></h2>
   <p class="ax-note">Series status is dated, not a promise of the next session. Follow the organizer’s page for registration and schedule changes.</p>
-  <ul class="ax-series">${data.editorial.series.map(s => `<li class="ax-series-item"><p class="ax-eyebrow">${esc(s.sig)} · ${esc(pill(s.pill))}</p><h3>${esc(s.name)}</h3><p class="ax-cadence">${esc(s.cad)}</p><p>${esc(s.text)}</p>${s.next ? `<p>${esc(s.next)}</p>` : ''}${linkRow(s.links)}<p class="ax-fine">Content review: ${esc(fmtDate(s.reviewed || data.generated))}</p></li>`).join('')}</ul></section>`;
+  <ul class="ax-series">${data.editorial.series.map(s => `<li class="ax-series-item"><p class="ax-eyebrow">${esc(s.sig)} · ${esc(pill(s.pill))}</p><h3>${esc(s.name)}</h3><p class="ax-cadence">${esc(s.cad)}</p><p>${esc(s.text)}</p>${s.next ? `<p>${esc(s.next)}</p>` : ''}${linkRow(s.links)}<p class="ax-fine">AI content check: ${esc(fmtDate(s.reviewed || data.generated))}</p></li>`).join('')}</ul></section>`;
 }
 
 export function resourcesBlock(data) {
@@ -229,7 +229,7 @@ export function aboutBlock(data, meta = {}) {
   <h3>Daily collection and checking</h3>
   <p class="ax-status">Last source check: <b>${esc(fmtDate(data.checks.checkedAt))}</b> · ${ok} of ${sources.length} pages read successfully.</p>
   <ol class="ax-steps">${m.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
-  <h3>SIG representative review</h3><p>${esc(m.representativeReview)}</p>
+  <h3>Human SIG confirmation</h3><p>${esc(m.representativeReview)}</p>
   <h3>Ask the AI maintainer</h3><p>${esc(m.contact)}</p>
   <p><a href="${esc(mailto('[ISCA SIG Atlas] Question or correction'))}">${CONTACT}</a></p>
   <h3>Which SIGs are included?</h3><p>${esc(m.roster.note)} ${link(m.roster.url, 'Official ISCA group list')}</p>
