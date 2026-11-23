@@ -147,7 +147,7 @@ test('all SIG profiles, sections and edition links work', async ({ page }) => {
     await expect(page.locator('.ax-sig-acr')).toHaveText(sig.acronym);
     await expect(page.locator('.ax-sig-name')).toHaveText(sig.fullName);
     await expect(page.locator('.ax-sig .ax-lede')).toHaveText(sig.description);
-    await expect(page.locator('.ax-sig')).toContainText('AI profile check:');
+    await expect(page.locator('.ax-sig')).not.toContainText(/AI (?:profile |content |source )?checks?/i);
     await expect(page.locator('.ax-sig')).not.toContainText(/\breviewed\b|verified by SIG/i);
     await expect(page.locator('#classic-edition')).toHaveAttribute('href',classic+'#sig-'+encodeURIComponent(sig.acronym));
   }
@@ -228,7 +228,8 @@ test('snapshot and no-WebGL fallbacks still expose the directory', async ({ page
   await page.locator('.track').first().click();
   await expect(page.locator('.ax-sig-acr')).toBeVisible();
   await page.locator('[data-view="about"]').click();
-  await expect(page.locator('#sleeve-body')).toContainText('record checks by Xiaojin, the AI agent maintaining this Atlas.');
+  await expect(page.locator('#sleeve-body')).toContainText('Maintained by Xiaojin, an AI agent');
+  await expect(page.locator('#sleeve-body')).not.toContainText(/AI (?:profile |content |source )?checks?/i);
   await expect(page.locator('#sleeve-body')).not.toContainText(/\breviewed\b/i);
   await page.locator('[data-view="series"]').click();
   await expect(page.getByRole('heading', {name:/Workshop & conference recordings/})).toHaveCount(0);
@@ -247,8 +248,9 @@ test('plain maintenance copy and direct talk index in both editions', async ({ p
     await expect(body).toContainText('all 20 SIGs');
     await expect(body).toContainText('page read successfully');
     await expect(body).toContainText('organizer’s page');
-    await expect(body).toContainText('“AI profile check”, “AI content check” and “AI source check” record checks by Xiaojin, the AI agent maintaining this Atlas.');
-    await expect(body).toContainText('They do not indicate human confirmation by ISCA or a SIG representative.');
+    await expect(body).toContainText('Maintained by Xiaojin, an AI agent');
+    await expect(body).toContainText('Accessing a page does not establish that every fact is correct or indicate human confirmation by ISCA or a SIG representative.');
+    await expect(body).not.toContainText(/AI (?:profile |content |source )?checks?/i);
     await expect(body).toContainText('The label “verified by SIG” is reserved for information explicitly confirmed by a human SIG representative');
     await expect(body).not.toContainText(/\breviewed\b/i);
     await page.screenshot({path:'qa-artifacts/'+edition+'-maintenance-reviewer.jpg',type:'jpeg'});
@@ -332,10 +334,12 @@ for(const width of [390,320]) test('talk controls and whole-record return fit at
   await page.goto(classic+'#series');await expect(page.locator('.talk-row')).toHaveCount(data.editorial.talks.length);await fits(page);
   await page.screenshot({path:'qa-artifacts/classic-talk-mobile-'+width+'.jpg',type:'jpeg'});
   await page.locator('[data-section="about"]').click();await fits(page);
-  await expect(page.locator('#content')).toContainText('record checks by Xiaojin, the AI agent maintaining this Atlas.');
+  await expect(page.locator('#content')).toContainText('Maintained by Xiaojin, an AI agent');
+  await expect(page.locator('#content')).not.toContainText(/AI (?:profile |content |source )?checks?/i);
   await page.screenshot({path:'qa-artifacts/classic-reviewer-mobile-'+width+'.jpg',type:'jpeg'});
   await openFancy(page);await page.locator('[data-view="about"]').click();await fits(page);
-  await expect(page.locator('#sleeve-body')).toContainText('record checks by Xiaojin, the AI agent maintaining this Atlas.');
+  await expect(page.locator('#sleeve-body')).toContainText('Maintained by Xiaojin, an AI agent');
+  await expect(page.locator('#sleeve-body')).not.toContainText(/AI (?:profile |content |source )?checks?/i);
   await page.screenshot({path:'qa-artifacts/fancy-reviewer-mobile-'+width+'.jpg',type:'jpeg'});
 });
 
@@ -417,7 +421,7 @@ for (const width of [1440,390,320]) test('matching sections and playable lecture
   }
 });
 
-for (const width of [1440,320]) test('AI check labels stay distinct from human SIG confirmation at '+width+'px', async ({ page }) => {
+for (const width of [1440,320]) test('check labels are absent while source content remains at '+width+'px', async ({ page }) => {
   await page.setViewportSize({width,height:900});
   for (const edition of ['classic','fancy']) {
     if (edition==='classic') {
@@ -426,25 +430,33 @@ for (const width of [1440,320]) test('AI check labels stay distinct from human S
       await expect(page.locator('#sig-SynSIG')).toHaveAttribute('open','');
     } else await openFancy(page,'#sig-SynSIG');
     const content=page.locator(edition==='classic'?'#content':'#sleeve-body');
-    await expect(content).toContainText('AI profile check:');
-    await expect(content).toContainText('AI checks do not indicate human SIG confirmation.');
-    await expect(content).not.toContainText(/\breviewed\b|verified by SIG/i);
+    await expect(content).not.toContainText(/AI (?:profile |content |source )?checks?|profile first compiled|\breviewed\b|verified by SIG/i);
+    await expect(content.getByRole('link',{name:'Official ISCA profile',exact:true}).first()).toBeVisible();
     await fits(page);
-    await page.screenshot({path:`qa-artifacts/${edition}-ai-profile-${width}.jpg`,type:'jpeg'});
+    await page.screenshot({path:`qa-artifacts/${edition}-clean-profile-${width}.jpg`,type:'jpeg'});
     for (const section of ['series','events']) {
       if (edition==='classic') await page.locator('[data-section="'+section+'"]').click();
       else await page.locator('[data-view="'+(section==='events'?'calendar':section)+'"]').click();
-      const label=section==='series'?'AI content check:':'AI source check';
-      const checks=content.locator(edition==='classic'?'.source-line':'.ax-fine').filter({hasText:label});
-      await expect(checks.first()).toBeVisible();
-      await expect(checks).toHaveCount(section==='series'?data.editorial.series.length:data.events.filter(e=>e.verified).length);
-      await expect(content).not.toContainText(/\breviewed\b|verified by SIG/i);
-      await checks.first().scrollIntoViewIfNeeded();
+      await expect(content).not.toContainText(/AI (?:profile |content |source )?checks?|\breviewed\b|verified by SIG/i);
+      if(section==='series') {
+        await expect(content.locator(edition==='classic'?'.series-row':'.ax-series-item')).toHaveCount(data.editorial.series.length);
+        await expect(content.locator(edition==='classic'?'.series-row .source-line':'.ax-series-item .ax-fine')).toHaveCount(0);
+        await content.locator(edition==='classic'?'.series-row':'.ax-series-item').first().scrollIntoViewIfNeeded();
+      } else {
+        const rows=content.locator(edition==='classic'?'.event-row':'.ax-event');
+        await expect(rows).toHaveCount(data.events.length);
+        const warnings=content.locator(edition==='classic'?'.event-row .source-line':'.ax-event .ax-fine');
+        await expect(warnings).toHaveCount(data.events.filter(e=>!e.verified).length);
+        for(const warning of await warnings.all()) await expect(warning).toHaveText('Not fully confirmed; reconfirm before making plans');
+        await expect(rows.locator('time')).toHaveCount(data.events.length);
+        await expect(rows.locator('h3 a,h4 a')).toHaveCount(data.events.length);
+      }
       await fits(page);
-      await page.screenshot({path:`qa-artifacts/${edition}-ai-${section}-${width}.jpg`,type:'jpeg'});
+      await page.screenshot({path:`qa-artifacts/${edition}-clean-${section}-${width}.jpg`,type:'jpeg'});
     }
   }
 });
+
 
 test('retired resource links lead to Lectures and unavailable previews retain a recording link', async ({ page }) => {
   await page.route('https://i.ytimg.com/**',route=>route.abort());
